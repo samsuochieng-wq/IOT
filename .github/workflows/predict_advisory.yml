@@ -1,0 +1,30 @@
+name: Predict Farm Advisory
+
+on:
+  schedule:
+    # Runs once a day at 06:00 UTC - adjust to match your DAY_MS aggregation window.
+    # Cron syntax: minute hour day month day-of-week
+    - cron: "0 6 * * *"
+  workflow_dispatch: {}   # lets you trigger it manually from the Actions tab, for testing
+
+jobs:
+  predict:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r github_actions/requirements.txt
+
+      - name: Run advisory prediction
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          FIREBASE_DB_URL: "https://your-project-id-default-rtdb.firebaseio.com"
+          DEVICE_ID: "esp32_001"
+        run: python github_actions/predict_advisory.py
