@@ -25,6 +25,6 @@ jobs:
       - name: Run advisory prediction
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
-          FIREBASE_DB_URL: "https://your-project-id-default-rtdb.firebaseio.com"
+          FIREBASE_DB_URL: "https://iot01-3f1ea-default-rtdb.firebaseio.com"
           DEVICE_ID: "esp32_001"
         run: python github_actions/predict_advisory.py
