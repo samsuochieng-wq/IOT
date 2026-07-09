@@ -133,57 +133,82 @@ def send_notifications(label, tokens):
 
     body = f"Device {DEVICE_ID}\n\n{label}"
 
-    multicast = messaging.MulticastMessage(
-
+    message = messaging.MulticastMessage(
         notification=messaging.Notification(
             title=title,
             body=body
         ),
-
         data={
             "device_id": DEVICE_ID,
             "advisory": label
         },
-
         tokens=tokens
     )
 
-    response = messaging.send_each_for_multicast(multicast)
+    print("\n==============================")
+    print("Sending Firebase Notification")
+    print("==============================")
+    print(f"Number of tokens : {len(tokens)}")
 
-    print(
-        f"Notifications:"
-        f" {response.success_count} success,"
-        f" {response.failure_count} failed"
-    )
+    for i, token in enumerate(tokens):
+        print(f"Token {i+1}: {token[:30]}...")
 
-    # Remove invalid tokens
+    try:
 
-    if response.failure_count > 0:
+        response = messaging.send_each_for_multicast(message)
 
-        subscribers_ref = db.reference(
-            f"devices/{DEVICE_ID}/subscribers"
-        )
+        print("\n========== FCM RESULT ==========")
+        print(f"Success Count : {response.success_count}")
+        print(f"Failure Count : {response.failure_count}")
 
-        subscribers = subscribers_ref.get()
+        for i, resp in enumerate(response.responses):
 
-        responses = response.responses
+            print(f"\nToken {i+1}")
 
-        index = 0
+            if resp.success:
+                print("SUCCESS")
 
-        for user_id, info in subscribers.items():
+            else:
+                print("FAILED")
 
-            token = info.get("token")
+                if resp.exception:
+                    print("Reason:")
+                    print(type(resp.exception).__name__)
+                    print(str(resp.exception))
 
-            if not token:
-                continue
+        # Remove invalid tokens
+        if response.failure_count > 0:
 
-            if not responses[index].success:
+            subscribers_ref = db.reference(
+                f"devices/{DEVICE_ID}/subscribers"
+            )
 
-                print("Removing invalid token:", user_id)
+            subscribers = subscribers_ref.get()
 
-                subscribers_ref.child(user_id).delete()
+            index = 0
 
-            index += 1
+            for user_id, info in subscribers.items():
+
+                token = info.get("token")
+
+                if not token:
+                    continue
+
+                if index < len(response.responses):
+
+                    if not response.responses[index].success:
+
+                        print(f"Removing invalid token for user: {user_id}")
+
+                        # subscribers_ref.child(user_id).delete()
+
+                index += 1
+
+    except Exception as e:
+
+        print("\n========== FCM EXCEPTION ==========")
+        print(type(e).__name__)
+        print(str(e))
 
 # ---------------------------------------------------
 # Main
