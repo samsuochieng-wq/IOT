@@ -1,31 +1,26 @@
 """
 predict_advisory.py
 --------------------
-Standalone script (NOT a Cloud Function) meant to be run by GitHub Actions on a
-schedule. Avoids Cloud Functions and Cloud Storage entirely, since both now
-require the paid Blaze plan (linked billing card) on Firebase - even for
-free-tier usage.
 
-This script:
-1. Loads the trained model directly from the repo (models/farm_advisory_model.joblib)
-   - no Cloud Storage involved.
-2. Reads the latest daily aggregate for a device from Realtime Database via the
-   Admin SDK (RTDB is free on the no-cost Spark plan - no card needed).
-3. Predicts an advisory label.
-4. Writes the result back to RTDB.
-5. If the label is urgent, looks up subscribed users in Firestore (also free on
-   Spark) and sends a push notification via FCM (unconditionally free, any plan).
+GitHub Actions script for Smart Farm AI.
 
-Auth: uses a Firebase service account JSON key. Generating and using a service
-account key does NOT require Blaze/billing - it's just a credential, free on
-any plan, for any Spark-tier product (RTDB, Firestore, FCM).
+Pipeline:
 
-Required GitHub Actions repo secret:
-    FIREBASE_SERVICE_ACCOUNT_JSON  -> the full contents of your service account key file
+ESP32
+   ↓
+Realtime Database (daily_aggregate)
+   ↓
+GitHub Actions
+   ↓
+Machine Learning Model
+   ↓
+Realtime Database (current_advisory)
+   ↓
+FCM Push Notification
+   ↓
+Browser
 
-Required environment variables (set in the workflow file):
-    FIREBASE_DB_URL   e.g. https://your-project-id-default-rtdb.firebaseio.com
-    DEVICE_ID         e.g. esp32_001
+No Firestore required.
 """
 
 import os
@@ -34,128 +29,289 @@ import json
 import joblib
 import pandas as pd
 import firebase_admin
-from firebase_admin import credentials, db, firestore, messaging
 
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "models", "farm_advisory_model.joblib")
+from firebase_admin import (
+    credentials,
+    db,
+    messaging
+)
+
+MODEL_PATH = os.path.join(
+    os.path.dirname(__file__),
+    "..",
+    "models",
+    "farm_advisory_model.joblib"
+)
+
 FIREBASE_DB_URL = os.environ["FIREBASE_DB_URL"]
 DEVICE_ID = os.environ["DEVICE_ID"]
 
-# Advisory labels urgent enough to warrant a push notification.
-NOTIFY_ON_LABELS = {"High Fungal Risk", "Irrigate Immediately", "Delay Fertilizer"}
+NOTIFY_ON_LABELS = {
+    "High Fungal Risk",
+    "Irrigate Immediately",
+    "Delay Fertilizer"
+}
 
+# ----------------------------------------------------
+# Initialize Firebase
+# ----------------------------------------------------
 
 def init_firebase():
-    service_account_info = json.loads(os.environ["FIREBASE_SERVICE_ACCOUNT_JSON"])
-    cred = credentials.Certificate(service_account_info)
-    firebase_admin.initialize_app(cred, {"databaseURL": FIREBASE_DB_URL})
-    return firestore.client()
 
+    service_account_info = json.loads(
+        os.environ["FIREBASE_SERVICE_ACCOUNT_JSON"]
+    )
+
+    cred = credentials.Certificate(service_account_info)
+
+    firebase_admin.initialize_app(
+        cred,
+        {
+            "databaseURL": FIREBASE_DB_URL
+        }
+    )
+
+# ----------------------------------------------------
+# Load ML Model
+# ----------------------------------------------------
 
 def load_model_bundle():
+
     if not os.path.exists(MODEL_PATH):
-        print(f"ERROR: model file not found at {MODEL_PATH}")
-        print("Make sure farm_advisory_model.joblib is committed to the repo under models/")
+
+        print("Model not found:")
+        print(MODEL_PATH)
+
         sys.exit(1)
+
     return joblib.load(MODEL_PATH)
 
+# ----------------------------------------------------
+# Read latest aggregate
+# ----------------------------------------------------
 
-def fetch_latest_reading(device_id: str):
-    ref = db.reference(f"/devices/{device_id}/daily_aggregate")
-    data = ref.get()
-    if not data:
-        print(f"No daily_aggregate data found for device {device_id}. Nothing to predict yet.")
-        sys.exit(0)  # not an error - just no data yet, exit cleanly so the workflow doesn't fail
-    return data
+def fetch_latest_reading(device_id):
 
+    reading = db.reference(
+        f"/devices/{device_id}/daily_aggregate"
+    ).get()
 
-def get_subscribed_tokens(fs_client, device_id: str):
-    subs_ref = fs_client.collection("devices").document(device_id).collection("subscribers")
-    subscriber_ids = [doc.id for doc in subs_ref.stream()]
+    if not reading:
 
-    user_tokens = []
-    for user_id in subscriber_ids:
-        user_doc = fs_client.collection("users").document(user_id).get()
-        if user_doc.exists:
-            tokens = user_doc.to_dict().get("fcm_tokens", [])
-            if tokens:
-                user_tokens.append((user_id, tokens))
-    return user_tokens
+        print("No daily aggregate available.")
 
+        sys.exit(0)
 
-def send_notifications(fs_client, device_id: str, advisory_label: str, user_tokens):
-    if not user_tokens:
-        print("No subscribers to notify for this device.")
+    return reading
+
+# ----------------------------------------------------
+# Read FCM Tokens
+# ----------------------------------------------------
+
+def get_subscribed_tokens(device_id):
+
+    subscribers = db.reference(
+        f"/devices/{device_id}/subscribers"
+    ).get()
+
+    if not subscribers:
+
+        print("No subscribers registered.")
+
+        return []
+
+    tokens = []
+
+    for token, info in subscribers.items():
+
+        if isinstance(info, dict) and info.get("enabled", False):
+
+            tokens.append(token)
+
+    print(f"Found {len(tokens)} subscriber(s).")
+
+    return tokens
+
+# ----------------------------------------------------
+# Send Notification
+# ----------------------------------------------------
+
+def send_notifications(device_id, advisory_label, tokens):
+
+    if len(tokens) == 0:
+
+        print("Nothing to notify.")
+
         return
 
     body_map = {
-        "High Fungal Risk": f"Device {device_id}: conditions favor fungal disease. Consider preventive spraying.",
-        "Irrigate Immediately": f"Device {device_id}: hot and dry with no rain. Irrigation recommended now.",
-        "Delay Fertilizer": f"Device {device_id}: heavy rain detected. Hold off on fertilizer application.",
+
+        "High Fungal Risk":
+            "Conditions favour fungal disease. Consider preventive spraying.",
+
+        "Irrigate Immediately":
+            "Hot and dry conditions detected. Irrigation is recommended.",
+
+        "Delay Fertilizer":
+            "Heavy rain detected. Delay fertilizer application."
+
     }
-    body = body_map.get(advisory_label, f"Device {device_id}: advisory update - {advisory_label}")
-    all_tokens = [token for _, tokens in user_tokens for token in tokens]
+
+    body = body_map.get(
+        advisory_label,
+        f"New farm advisory: {advisory_label}"
+    )
 
     message = messaging.MulticastMessage(
-        notification=messaging.Notification(title="Farm Advisory Alert", body=body),
-        data={"device_id": device_id, "advisory_label": advisory_label},
-        tokens=all_tokens,
+
+        notification=messaging.Notification(
+
+            title="🌱 Smart Farm Alert",
+
+            body=body
+
+        ),
+
+        data={
+
+            "device_id": device_id,
+
+            "advisory_label": advisory_label
+
+        },
+
+        tokens=tokens
+
     )
-    response = messaging.send_each_for_multicast(message)
-    print(f"Notifications sent: {response.success_count} succeeded, {response.failure_count} failed.")
 
-    if response.failure_count > 0:
-        for idx, resp in enumerate(response.responses):
-            if not resp.success:
-                bad_token = all_tokens[idx]
-                matching = fs_client.collection("users").where("fcm_tokens", "array_contains", bad_token).stream()
-                for doc in matching:
-                    doc.reference.update({"fcm_tokens": firestore.ArrayRemove([bad_token])})
-                print(f"Removed invalid token from user records: {bad_token[:12]}...")
+    response = messaging.send_each_for_multicast(
+        message
+    )
 
+    print(
+        f"Notifications sent:"
+        f" {response.success_count} success,"
+        f" {response.failure_count} failed."
+    )
+
+# ----------------------------------------------------
+# Main
+# ----------------------------------------------------
 
 def main():
-    fs_client = init_firebase()
+
+    init_firebase()
+
     bundle = load_model_bundle()
+
     model = bundle["model"]
+
     label_encoder = bundle["label_encoder"]
-    expected_features = bundle["feature_order"]
 
-    reading = fetch_latest_reading(DEVICE_ID)
+    feature_order = bundle["feature_order"]
 
-    # NOTE: rain_intensity_avg is a 0-1 sensor proxy, not calibrated mm - retrain
-    # the model on this same scale before relying on this in production.
+    reading = fetch_latest_reading(
+        DEVICE_ID
+    )
+
     live_reading = {
-        "temp_max": reading.get("temp_max"),
-        "temp_min": reading.get("temp_min"),
-        "temp_mean": reading.get("temp_mean"),
-        "humidity_mean": reading.get("humidity_mean"),
-        "precipitation_mm": reading.get("rain_intensity_avg", 0.0),
+
+        "temp_max":
+            reading.get("temp_max"),
+
+        "temp_min":
+            reading.get("temp_min"),
+
+        "temp_mean":
+            reading.get("temp_mean"),
+
+        "humidity_mean":
+            reading.get("humidity_mean"),
+
+        "precipitation_mm":
+            reading.get(
+                "rain_intensity_avg",
+                0.0
+            )
+
     }
 
-    missing = [k for k, v in live_reading.items() if v is None]
+    missing = [
+
+        key
+
+        for key, value in live_reading.items()
+
+        if value is None
+
+    ]
+
     if missing:
-        print(f"ERROR: missing required fields in sensor data: {missing}")
+
+        print("Missing sensor values:")
+
+        print(missing)
+
         sys.exit(1)
 
-    live_df = pd.DataFrame([live_reading])[expected_features]
-    prediction_encoded = model.predict(live_df)
-    advisory_label = label_encoder.inverse_transform(prediction_encoded)[0]
+    live_df = pd.DataFrame(
+        [live_reading]
+    )[feature_order]
 
-    print(f"Predicted advisory for {DEVICE_ID}: {advisory_label}")
+    prediction = model.predict(
+        live_df
+    )
 
-    result = {
+    advisory_label = label_encoder.inverse_transform(
+        prediction
+    )[0]
+
+    print()
+
+    print("Predicted Advisory:")
+
+    print(advisory_label)
+
+    print()
+
+    db.reference(
+
+        f"/devices/{DEVICE_ID}/current_advisory"
+
+    ).set({
+
         "device_id": DEVICE_ID,
+
         "advisory_label": advisory_label,
-        "input": live_reading,
-    }
-    db.reference(f"/devices/{DEVICE_ID}/current_advisory").set(result)
+
+        "input": live_reading
+
+    })
+
+    print("Realtime Database updated.")
 
     if advisory_label in NOTIFY_ON_LABELS:
-        user_tokens = get_subscribed_tokens(fs_client, DEVICE_ID)
-        send_notifications(fs_client, DEVICE_ID, advisory_label, user_tokens)
-    else:
-        print("Advisory not urgent enough to notify - skipping push notifications.")
 
+        tokens = get_subscribed_tokens(
+            DEVICE_ID
+        )
+
+        send_notifications(
+
+            DEVICE_ID,
+
+            advisory_label,
+
+            tokens
+
+        )
+
+    else:
+
+        print(
+            "Notification not required."
+        )
 
 if __name__ == "__main__":
+
     main()
