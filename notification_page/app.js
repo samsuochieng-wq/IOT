@@ -1,22 +1,22 @@
-import { messaging, vapidKey, app } from "./firebase-config.js";
+import { messaging, vapidKey } from "./firebase-config.js";
 
 import {
     getToken,
     onMessage
 } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-messaging.js";
 
-import {
-    getDatabase,
-    ref,
-    set
-} from "https://www.gstatic.com/firebasejs/11.9.1/firebase-database.js";
+// ---------------- CONFIG ----------------
 
 const DEVICE_ID = "esp32_001";
+const USER_ID = "bob_macnill";
+
+const REGISTER_ENDPOINT =
+    "https://smartfarm-4z48.onrender.com/register_subscription";
+
+// ----------------------------------------
 
 const statusDiv = document.getElementById("status");
 const enableBtn = document.getElementById("enableBtn");
-
-const db = getDatabase(app);
 
 enableBtn.addEventListener("click", async () => {
 
@@ -24,7 +24,7 @@ enableBtn.addEventListener("click", async () => {
 
     try {
 
-        // Ask browser permission
+        // Request browser notification permission
         const permission = await Notification.requestPermission();
 
         if (permission !== "granted") {
@@ -48,26 +48,43 @@ enableBtn.addEventListener("click", async () => {
         });
 
         if (!token) {
-            statusDiv.innerHTML = "❌ Failed to generate token.";
+            statusDiv.innerHTML = "❌ Failed to generate FCM token.";
             return;
         }
 
         console.log("FCM Token:", token);
 
-        // Save token to Realtime Database
-        await set(
-            ref(db, `devices/${DEVICE_ID}/subscribers/${token}`),
-            {
-                token: token,
-                browser: navigator.userAgent,
-                platform: navigator.platform,
-                enabled: true,
-                registered_at: new Date().toISOString()
-            }
-        );
+        statusDiv.innerHTML = "Registering with Smart Farm server...";
+
+        // Send the token to the Render backend
+        const response = await fetch(REGISTER_ENDPOINT, {
+
+            method: "POST",
+
+            headers: {
+                "Content-Type": "application/json"
+            },
+
+            body: JSON.stringify({
+
+                user_id: USER_ID,
+                device_id: DEVICE_ID,
+                fcm_token: token
+
+            })
+
+        });
+
+        const result = await response.json();
+
+        console.log("Server Response:", result);
+
+        if (!response.ok) {
+            throw new Error(result.error || "Registration failed");
+        }
 
         statusDiv.innerHTML =
-            "✅ Browser successfully registered for notifications!";
+            "✅ Browser successfully subscribed to Smart Farm notifications!";
 
     }
     catch (err) {
@@ -84,12 +101,16 @@ enableBtn.addEventListener("click", async () => {
 // Receive notifications while page is open
 onMessage(messaging, (payload) => {
 
-    console.log("Message received:", payload);
+    console.log("Notification received:", payload);
 
-    alert(
-        payload.notification.title +
-        "\n\n" +
-        payload.notification.body
-    );
+    if (payload.notification) {
+
+        alert(
+            payload.notification.title +
+            "\n\n" +
+            payload.notification.body
+        );
+
+    }
 
 });
