@@ -1,63 +1,47 @@
-import { messaging, vapidKey } from "./firebase-config.js";
-
-import {
-    getToken,
-    onMessage
-} from "https://www.gstatic.com/firebasejs/11.9.1/firebase-messaging.js";
-
-// ---------------- CONFIG ----------------
+// ------------------------------------------
+// Smart Farm Registration Page
+// ------------------------------------------
 
 const DEVICE_ID = "esp32_001";
-const USER_ID = "bob_macnill";
 
-const REGISTER_ENDPOINT =
+// Your Render backend
+const API_URL =
     "https://smartfarm-4z48.onrender.com/register_subscription";
 
-// ----------------------------------------
-
+const registerBtn = document.getElementById("registerBtn");
+const emailInput = document.getElementById("email");
 const statusDiv = document.getElementById("status");
-const enableBtn = document.getElementById("enableBtn");
 
-enableBtn.addEventListener("click", async () => {
+registerBtn.addEventListener("click", async () => {
 
-    statusDiv.innerHTML = "Requesting notification permission...";
+    const email = emailInput.value.trim();
+
+    if (email === "") {
+
+        statusDiv.innerHTML =
+            "❌ Please enter your email address.";
+
+        return;
+    }
+
+    // Simple email validation
+    const emailRegex =
+        /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(email)) {
+
+        statusDiv.innerHTML =
+            "❌ Please enter a valid email address.";
+
+        return;
+    }
+
+    statusDiv.innerHTML =
+        "Registering...";
 
     try {
 
-        // Request browser notification permission
-        const permission = await Notification.requestPermission();
-
-        if (permission !== "granted") {
-            statusDiv.innerHTML = "❌ Notification permission denied.";
-            return;
-        }
-
-        statusDiv.innerHTML = "Registering service worker...";
-
-        // Register service worker
-        const registration = await navigator.serviceWorker.register(
-            "./firebase-messaging-sw.js"
-        );
-
-        statusDiv.innerHTML = "Generating FCM token...";
-
-        // Generate FCM token
-        const token = await getToken(messaging, {
-            vapidKey: vapidKey,
-            serviceWorkerRegistration: registration
-        });
-
-        if (!token) {
-            statusDiv.innerHTML = "❌ Failed to generate FCM token.";
-            return;
-        }
-
-        console.log("FCM Token:", token);
-
-        statusDiv.innerHTML = "Registering with Smart Farm server...";
-
-        // Send the token to the Render backend
-        const response = await fetch(REGISTER_ENDPOINT, {
+        const response = await fetch(API_URL, {
 
             method: "POST",
 
@@ -67,9 +51,9 @@ enableBtn.addEventListener("click", async () => {
 
             body: JSON.stringify({
 
-                user_id: USER_ID,
-                device_id: DEVICE_ID,
-                fcm_token: token
+                email: email,
+
+                device_id: DEVICE_ID
 
             })
 
@@ -77,39 +61,31 @@ enableBtn.addEventListener("click", async () => {
 
         const result = await response.json();
 
-        console.log("Server Response:", result);
+        console.log(result);
 
         if (!response.ok) {
-            throw new Error(result.error || "Registration failed");
+
+            statusDiv.innerHTML =
+                "❌ " + (result.error || "Registration failed.");
+
+            return;
         }
 
         statusDiv.innerHTML =
-            "✅ Browser successfully subscribed to Smart Farm notifications!";
+            "✅ Successfully registered! Future farm advisories will be sent to:<br><br><strong>"
+            + email +
+            "</strong>";
+
+        emailInput.value = "";
 
     }
+
     catch (err) {
 
         console.error(err);
 
         statusDiv.innerHTML =
-            "❌ Error: " + err.message;
-
-    }
-
-});
-
-// Receive notifications while page is open
-onMessage(messaging, (payload) => {
-
-    console.log("Notification received:", payload);
-
-    if (payload.notification) {
-
-        alert(
-            payload.notification.title +
-            "\n\n" +
-            payload.notification.body
-        );
+            "❌ Unable to contact the registration server.";
 
     }
 

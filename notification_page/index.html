@@ -1,36 +1,77 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Farm Notifications</title>
 
-    <link rel="stylesheet" href="style.css">
+<head>
+
+    <meta charset="UTF-8">
+
+    <title>Smart Farm Registration</title>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style>
+
+        body{
+            font-family:Arial;
+            max-width:500px;
+            margin:auto;
+            margin-top:60px;
+            padding:20px;
+        }
+
+        input{
+            width:100%;
+            padding:12px;
+            margin-top:10px;
+            margin-bottom:20px;
+            font-size:16px;
+        }
+
+        button{
+
+            width:100%;
+            padding:14px;
+            font-size:16px;
+            cursor:pointer;
+        }
+
+        #status{
+
+            margin-top:20px;
+            font-weight:bold;
+
+        }
+
+    </style>
+
 </head>
 
 <body>
 
-    <div class="container">
+<h2>🌱 Smart Farm Advisory Registration</h2>
 
-        <h1>🌱 Smart Farm Notification Service</h1>
+<p>
 
-        <p>
-            This page registers your browser to receive AI-generated farm advisories.
-        </p>
+Register your email to receive AI-generated farming advisories.
 
-        <button id="enableBtn">
-            Enable Notifications
-        </button>
+</p>
 
-        <h3>Status</h3>
+<input
+type="email"
+id="email"
+placeholder="Enter your email address"
+>
 
-        <div id="status">
-            Waiting...
-        </div>
+<button id="registerBtn">
 
-    </div>
+Register
 
-    <script type="module" src="app.js"></script>
+</button>
+
+<div id="status"></div>
+
+<script type="module" src="app.js"></script>
 
 </body>
+
 </html>
