@@ -1,33 +1,35 @@
-importScripts("https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js");
-importScripts("https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js");
+// Firebase Service Worker
 
-self.addEventListener("install", () => {
-  self.skipWaiting();
+importScripts("https://www.gstatic.com/firebasejs/11.9.1/firebase-app-compat.js");
+importScripts("https://www.gstatic.com/firebasejs/11.9.1/firebase-messaging-compat.js");
+
+firebase.initializeApp({
+    apiKey: "AIzaSyBw0eieldINjNpKRhzJwFr4RDxPKXlDhj4",
+    authDomain: "iot01-3f1ea.firebaseapp.com",
+    databaseURL: "https://iot01-3f1ea-default-rtdb.firebaseio.com",
+    projectId: "iot01-3f1ea",
+    storageBucket: "iot01-3f1ea.firebasestorage.app",
+    messagingSenderId: "660894621070",
+    appId: "1:660894621070:web:670de3e001e7205ef498df"
 });
 
-self.addEventListener("activate", (event) => {
-  event.waitUntil(self.clients.claim());
-});
-
-const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "iot01-3f1ea.firebaseapp.com",
-  projectId: "iot01-3f1ea",
-  databaseURL: "https://iot01-3f1ea-default-rtdb.firebaseio.com",
-  storageBucket: "iot01-3f1ea.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
-};
-
-firebase.initializeApp(firebaseConfig);
 const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
-  const notificationTitle = payload.notification?.title || "Farm Advisory Alert";
-  const notificationOptions = {
-    body: payload.notification?.body || "You have a new advisory update.",
-    icon: "/notification_page/icon.png"
-  };
 
-  return self.registration.showNotification(notificationTitle, notificationOptions);
+    console.log("Background Message:", payload);
+
+    const notificationTitle =
+        payload.notification?.title || "Smart Farm";
+
+    const notificationOptions = {
+        body: payload.notification?.body || "",
+        icon: "https://cdn-icons-png.flaticon.com/512/2909/2909762.png"
+    };
+
+    self.registration.showNotification(
+        notificationTitle,
+        notificationOptions
+    );
+
 });

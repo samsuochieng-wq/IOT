@@ -1,36 +1,36 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Farm Notification Page</title>
-    <style>
-      body {
-        font-family: Arial, sans-serif;
-        max-width: 700px;
-        margin: 2rem auto;
-        padding: 1rem;
-        line-height: 1.5;
-      }
-      button {
-        padding: 0.7rem 1rem;
-        cursor: pointer;
-      }
-      #status {
-        margin-top: 1rem;
-        white-space: pre-wrap;
-      }
-    </style>
-  </head>
-  <body>
-    <h1>Farm Notification Page</h1>
-    <p>Use this page to request browser notification permission and receive FCM messages.</p>
-    <button id="enable-notifications">Enable Notifications</button>
-    <div id="status">Waiting...</div>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Farm Notifications</title>
 
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
-    <script src="./firebase-config.js"></script>
-    <script src="./app.js"></script>
-  </body>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <div class="container">
+
+        <h1>🌱 Smart Farm Notification Service</h1>
+
+        <p>
+            This page registers your browser to receive AI-generated farm advisories.
+        </p>
+
+        <button id="enableBtn">
+            Enable Notifications
+        </button>
+
+        <h3>Status</h3>
+
+        <div id="status">
+            Waiting...
+        </div>
+
+    </div>
+
+    <script type="module" src="app.js"></script>
+
+</body>
 </html>

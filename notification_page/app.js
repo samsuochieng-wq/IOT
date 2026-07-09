@@ -1,39 +1,95 @@
-const statusBox = document.getElementById("status");
-const enableButton = document.getElementById("enable-notifications");
+import { messaging, vapidKey, app } from "./firebase-config.js";
 
-function setStatus(message) {
-  statusBox.textContent = message;
-}
+import {
+    getToken,
+    onMessage
+} from "https://www.gstatic.com/firebasejs/11.9.1/firebase-messaging.js";
 
-if (!window.firebaseConfig) {
-  setStatus("Firebase config is missing. Update firebase-config.js first.");
-} else {
-  firebase.initializeApp(window.firebaseConfig);
-  const messaging = firebase.messaging();
+import {
+    getDatabase,
+    ref,
+    set
+} from "https://www.gstatic.com/firebasejs/11.9.1/firebase-database.js";
 
-  enableButton.addEventListener("click", async () => {
+const DEVICE_ID = "esp32_001";
+
+const statusDiv = document.getElementById("status");
+const enableBtn = document.getElementById("enableBtn");
+
+const db = getDatabase(app);
+
+enableBtn.addEventListener("click", async () => {
+
+    statusDiv.innerHTML = "Requesting notification permission...";
+
     try {
-      if (!("Notification" in window)) {
-        setStatus("This browser does not support notifications.");
-        return;
-      }
 
-      const permission = await Notification.requestPermission();
-      setStatus(`Notification permission: ${permission}`);
+        // Ask browser permission
+        const permission = await Notification.requestPermission();
 
-      if (permission === "granted") {
-        const registration = await navigator.serviceWorker.register("./firebase-messaging-sw.js");
-        const token = await messaging.getToken({ vapidKey: "YOUR_VAPID_PUBLIC_KEY", serviceWorkerRegistration: registration });
-        setStatus(`Notification permission granted. FCM token: ${token}`);
-      }
-    } catch (error) {
-      console.error(error);
-      setStatus(`Error: ${error.message}`);
+        if (permission !== "granted") {
+            statusDiv.innerHTML = "❌ Notification permission denied.";
+            return;
+        }
+
+        statusDiv.innerHTML = "Registering service worker...";
+
+        // Register service worker
+        const registration = await navigator.serviceWorker.register(
+            "./firebase-messaging-sw.js"
+        );
+
+        statusDiv.innerHTML = "Generating FCM token...";
+
+        // Generate FCM token
+        const token = await getToken(messaging, {
+            vapidKey: vapidKey,
+            serviceWorkerRegistration: registration
+        });
+
+        if (!token) {
+            statusDiv.innerHTML = "❌ Failed to generate token.";
+            return;
+        }
+
+        console.log("FCM Token:", token);
+
+        // Save token to Realtime Database
+        await set(
+            ref(db, `devices/${DEVICE_ID}/subscribers/${token}`),
+            {
+                token: token,
+                browser: navigator.userAgent,
+                platform: navigator.platform,
+                enabled: true,
+                registered_at: new Date().toISOString()
+            }
+        );
+
+        statusDiv.innerHTML =
+            "✅ Browser successfully registered for notifications!";
+
     }
-  });
+    catch (err) {
 
-  messaging.onMessage((payload) => {
-    console.log("Message received", payload);
-    setStatus(`Message received: ${JSON.stringify(payload, null, 2)}`);
-  });
-}
+        console.error(err);
+
+        statusDiv.innerHTML =
+            "❌ Error: " + err.message;
+
+    }
+
+});
+
+// Receive notifications while page is open
+onMessage(messaging, (payload) => {
+
+    console.log("Message received:", payload);
+
+    alert(
+        payload.notification.title +
+        "\n\n" +
+        payload.notification.body
+    );
+
+});
