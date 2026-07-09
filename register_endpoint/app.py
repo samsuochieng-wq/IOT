@@ -1,18 +1,10 @@
 """
-app.py - register_subscription endpoint
----------------------------------------
+app.py
+------
 
-Registers browser/device FCM tokens in Firestore.
+Registers browser FCM tokens into Firebase Realtime Database.
 
-Deploy on Render:
-- Build Command:
-    pip install -r requirements.txt
-
-- Start Command:
-    gunicorn app:app
-
-Environment Variable:
-    FIREBASE_SERVICE_ACCOUNT_JSON
+No Firestore required.
 """
 
 import os
@@ -22,27 +14,34 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 import firebase_admin
-from firebase_admin import credentials, firestore
+from firebase_admin import credentials, db
 
 app = Flask(__name__)
 
-# Enable CORS so GitHub Pages can call this API
 CORS(app)
 
-# Initialize Firebase Admin
+# -----------------------------
+# Firebase Admin Initialization
+# -----------------------------
+
 service_account_info = json.loads(
     os.environ["FIREBASE_SERVICE_ACCOUNT_JSON"]
 )
 
 cred = credentials.Certificate(service_account_info)
 
-firebase_admin.initialize_app(cred)
+firebase_admin.initialize_app(
+    cred,
+    {
+        "databaseURL": "https://iot01-3f1ea-default-rtdb.firebaseio.com"
+    }
+)
 
-fs_client = firestore.client()
 
-@app.route("/", methods=["GET"])
-def health_check():
-    return jsonify({"status": "ok"}), 200
+@app.route("/")
+def health():
+    return jsonify({"status": "ok"})
+
 
 @app.route("/register_subscription", methods=["POST"])
 def register_subscription():
@@ -50,64 +49,29 @@ def register_subscription():
     body = request.get_json(silent=True)
 
     if not body:
-        return jsonify({
-            "error": "Request body must be valid JSON"
-        }), 400
+        return jsonify({"error": "Invalid JSON"}), 400
 
     user_id = body.get("user_id")
-    fcm_token = body.get("fcm_token")
     device_id = body.get("device_id")
+    token = body.get("fcm_token")
 
-    missing = [
-        field for field in (
-            "user_id",
-            "fcm_token",
-            "device_id"
-        )
-        if not body.get(field)
-    ]
-
-    if missing:
+    if not user_id or not device_id or not token:
         return jsonify({
-            "error": f"Missing required fields: {missing}"
+            "error": "user_id, device_id and fcm_token are required"
         }), 400
 
-    # Store token under the user document
-    user_ref = fs_client.collection("users").document(user_id)
+    # Store under RTDB
+    db.reference(
+        f"devices/{device_id}/subscribers/{user_id}"
+    ).set({
+        "token": token,
+        "registered": True
+    })
 
-    user_ref.set(
-        {
-            "fcm_tokens": firestore.ArrayUnion([fcm_token])
-        },
-        merge=True
-    )
+    return jsonify({
+        "status": "subscribed"
+    })
 
-    # Register user as subscriber of the device
-    sub_ref = (
-        fs_client.collection("devices")
-        .document(device_id)
-        .collection("subscribers")
-        .document(user_id)
-    )
-
-    sub_ref.set(
-        {
-            "subscribed_at": firestore.SERVER_TIMESTAMP
-        }
-    )
-
-    return jsonify(
-        {
-            "status": "subscribed",
-            "user_id": user_id,
-            "device_id": device_id
-        }
-    ), 200
-
-# Handle browser preflight OPTIONS requests
-@app.route("/register_subscription", methods=["OPTIONS"])
-def register_subscription_options():
-    return "", 204
 
 if __name__ == "__main__":
     app.run(
