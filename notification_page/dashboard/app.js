@@ -2,6 +2,9 @@
 //  SMART FARM – DASHBOARD (Firebase Direct)
 // ==========================================
 
+import { db } from './firebase-config.js';
+import { ref, get, child } from 'firebase/database';
+
 // ─── CHECK IF REGISTERED ──────────────────
 (function() {
   const registered = localStorage.getItem('smartfarm_registered');
@@ -21,6 +24,7 @@ if (signOutBtn) {
     localStorage.removeItem('smartfarm_registered');
     localStorage.removeItem('smartfarm_email');
     localStorage.removeItem('smartfarm_name');
+    // Attempt Firebase sign-out
     import('./firebase-config.js').then(({ auth }) => {
       auth.signOut();
     }).catch(() => {});
@@ -98,9 +102,6 @@ function truncateAdvisory(label, maxLen = 60) {
 }
 
 // ─── FIREBASE DIRECT READ ────────────────────
-import { db } from './firebase-config.js';
-import { ref, get, child } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
-
 async function fetchCurrentAdvisory() {
     try {
         const snapshot = await get(child(ref(db), `devices/${CONFIG.DEVICE_ID}/current_advisory`));
@@ -143,7 +144,6 @@ function renderCurrentAdvisory(advisory) {
         return;
     }
 
-    // Sensor cards from advisory
     const input = advisory.input || {};
     const temp = input.temp_mean;
     dom.tempValue.textContent = temp !== undefined && temp !== null ? Number(temp).toFixed(1) : '--';
@@ -158,11 +158,9 @@ function renderCurrentAdvisory(advisory) {
         <span class="advisory-badge ${cls}">${truncateAdvisory(label, 50)}</span>
     `;
 
-    // Forecast note
     const forecastNote = advisory.forecast_note || '';
     document.getElementById('forecast-note').textContent = forecastNote;
 
-    // Weather forecast from advisory
     const weather = advisory.weather_forecast || {};
     const rainProb = weather.rain_prob !== undefined ? weather.rain_prob : '--';
     const windTomorrow = weather.wind_speed !== undefined ? weather.wind_speed : '--';
@@ -181,7 +179,6 @@ function renderCurrentAdvisory(advisory) {
         weatherRow.style.display = 'grid';
     }
 
-    // Update last updated time using advisory's predicted_at if available
     if (advisory.predicted_at) {
         dom.lastUpdated.textContent = new Date(advisory.predicted_at).toLocaleString();
     } else {
@@ -189,9 +186,8 @@ function renderCurrentAdvisory(advisory) {
     }
 }
 
-// ─── RENDER TABLE (from history) ──────────────
+// ─── RENDER TABLE ──────────────────────────────
 function renderTable(readings) {
-    // same as before
     const tbody = dom.advisoryBody;
     const countEl = dom.advisoryCount;
     if (!readings || readings.length === 0) {
@@ -211,8 +207,7 @@ function renderTable(readings) {
     tbody.innerHTML = html;
 }
 
-// ─── RENDER CHARTS (from history) ────────────
-// (same as before – unchanged)
+// ─── RENDER CHARTS ────────────────────────────
 function updateOrCreateChart(canvasId, label, color, dataPoints, unit = '') {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return null;
@@ -306,11 +301,9 @@ function renderCharts(readings) {
 // ─── MAIN UPDATE ──────────────────────────────
 async function refreshDashboard() {
     try {
-        // 1. Get current advisory from Firebase (live data)
         const advisory = await fetchCurrentAdvisory();
         renderCurrentAdvisory(advisory);
 
-        // 2. Get history for charts and table (from Render backend)
         const result = await fetchHistoryData();
         if (result && result.readings && result.readings.length > 0) {
             const sorted = [...result.readings].sort((a, b) => new Date(b.predicted_at) - new Date(a.predicted_at));
@@ -319,11 +312,9 @@ async function refreshDashboard() {
             renderTable(sorted);
             renderCharts(sorted);
         } else {
-            // If no history, clear table and charts
             renderTable([]);
             renderCharts([]);
         }
-
         dom.statusDot.className = 'dot';
         if (isFirstLoad) isFirstLoad = false;
     } catch (err) {
@@ -332,14 +323,12 @@ async function refreshDashboard() {
     }
 }
 
-// ─── AUTO-REFRESH ────────────────────────────
 function startAutoRefresh() {
     if (refreshTimer) clearInterval(refreshTimer);
     refreshTimer = setInterval(refreshDashboard, CONFIG.REFRESH_INTERVAL_MS);
     dom.refreshLabel.textContent = `Auto-refresh every ${CONFIG.REFRESH_INTERVAL_MS / 1000}s`;
 }
 
-// ─── INIT ─────────────────────────────────────
 async function init() {
     dom.tempValue.textContent = '…';
     dom.humidityValue.textContent = '…';
