@@ -1,102 +1,40 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Smart Farm Advisory</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light dark">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🌱 Smart Farm – Notifications</title>
+  <link rel="stylesheet" href="style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz@14..32&display=swap" rel="stylesheet" />
 </head>
 <body>
-
-  <header class="topbar">
-    <div class="wordmark">
-      <span class="wordmark-icon">🌱</span>
-      <span>Smart Farm Advisory</span>
-    </div>
-    <button id="themeToggle" class="theme-toggle" aria-label="Toggle dark mode" title="Toggle dark mode">
-      <span id="themeIcon">🌙</span>
-    </button>
-  </header>
-
-  <main>
-
-    <!-- Live instrument panel -->
-    <section class="panel" aria-labelledby="panelHeading">
-      <div class="panel-head">
-        <h1 id="panelHeading">Live Field Reading</h1>
-        <div class="device-select-wrap">
-          <label for="deviceSelect" class="sr-only">Device</label>
-          <select id="deviceSelect" class="device-select">
-            <option value="esp32_001">Farm A · ESP32_001</option>
-          </select>
-        </div>
+  <div class="container">
+    <div class="card">
+      <div class="brand">
+        <span class="logo">🌱</span>
+        <h1>Smart Farm</h1>
+        <span class="subtitle">AI-Powered Advisory</span>
       </div>
 
-      <div class="readouts" id="readouts">
-        <div class="readout">
-          <div class="readout-value" id="valTemp">--</div>
-          <div class="readout-label">Temperature</div>
-        </div>
-        <div class="readout">
-          <div class="readout-value" id="valHumidity">--</div>
-          <div class="readout-label">Humidity</div>
-        </div>
-        <div class="readout">
-          <div class="readout-value" id="valRain">--</div>
-          <div class="readout-label">Rain</div>
-        </div>
-      </div>
-
-      <div class="advisory-card" id="advisoryCard" data-state="normal">
-        <div class="advisory-eyebrow">
-          <span class="pulse-dot" id="pulseDot"></span>
-          <span>AI Advisory</span>
-        </div>
-        <div class="advisory-label" id="advisoryLabel">Loading&hellip;</div>
-        <p class="advisory-explanation" id="advisoryExplanation">
-          Fetching the latest reading from the field sensor.
-        </p>
-      </div>
-
-      <div class="meta-row">
-        <span id="lastUpdate">Last update: &mdash;</span>
-        <span id="subscriberCount">&mdash; farmers subscribed</span>
-      </div>
-    </section>
-
-    <!-- Registration -->
-    <section class="panel register-panel" aria-labelledby="registerHeading">
-      <h2 id="registerHeading">Get advisories by email</h2>
-      <p class="register-copy">
-        Register once. You'll receive an email whenever conditions call for action &mdash;
-        irrigation, fungal risk, or fertilizer timing.
+      <p class="description">
+        Get real‑time farm advisories sent to your inbox.
+        Enter your email to subscribe.
       </p>
 
-      <form id="registerForm" novalidate>
-        <label for="email" class="sr-only">Email address</label>
-        <input
-          type="email"
-          id="email"
-          placeholder="you@example.com"
-          autocomplete="email"
-          required
-        >
-        <button type="submit" id="registerBtn">Register</button>
+      <form id="registerForm">
+        <div class="input-group">
+          <input type="email" id="email" placeholder="you@example.com" required />
+          <button type="submit" id="registerBtn">Subscribe</button>
+        </div>
+        <div id="status" data-kind=""></div>
       </form>
 
-      <div id="status" role="status" aria-live="polite"></div>
-    </section>
+      <div class="footer">
+        <span>🔒 Your email is safe with us.</span>
+      </div>
+    </div>
+  </div>
 
-  </main>
-
-  <footer class="site-footer">
-    <span>Smart Farm Advisory &middot; data refreshes every 30s</span>
-  </footer>
-
-<script type="module" src="app.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
