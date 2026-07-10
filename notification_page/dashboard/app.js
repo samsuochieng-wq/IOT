@@ -1,5 +1,5 @@
 // ==========================================
-//  SMART FARM – DASHBOARD (Debug Version)
+//  SMART FARM – DASHBOARD (Firebase Direct)
 // ==========================================
 
 // ─── CHECK IF REGISTERED ──────────────────
@@ -97,7 +97,24 @@ function truncateAdvisory(label, maxLen = 60) {
     return label.length > maxLen ? label.slice(0, maxLen) + '…' : label;
 }
 
-// ─── API ──────────────────────────────────────
+// ─── FIREBASE DIRECT READ ────────────────────
+import { db } from './firebase-config.js';
+import { ref, get, child } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+
+async function fetchCurrentAdvisory() {
+    try {
+        const snapshot = await get(child(ref(db), `devices/${CONFIG.DEVICE_ID}/current_advisory`));
+        if (snapshot.exists()) {
+            return snapshot.val();
+        }
+        return null;
+    } catch (err) {
+        console.warn('[fetchCurrentAdvisory]', err.message);
+        return null;
+    }
+}
+
+// ─── API FOR HISTORY ─────────────────────────
 async function fetchHistoryData() {
     const url = `${CONFIG.API_BASE}/history-data?device_id=${encodeURIComponent(CONFIG.DEVICE_ID)}`;
     try {
@@ -110,9 +127,9 @@ async function fetchHistoryData() {
     }
 }
 
-// ─── RENDER CARDS (Enhanced + Debug) ────────
-function renderCards(readings) {
-    if (!readings || readings.length === 0) {
+// ─── RENDER CURRENT ADVISORY (from Firebase) ──
+function renderCurrentAdvisory(advisory) {
+    if (!advisory) {
         dom.tempValue.textContent = '--';
         dom.humidityValue.textContent = '--';
         dom.rainfallValue.textContent = '--';
@@ -126,68 +143,55 @@ function renderCards(readings) {
         return;
     }
 
-    // ---- DEBUG: Log the first reading ----
-    console.log('First reading:', readings[0]);
-    console.log('Does it have weather_forecast?', readings[0]?.weather_forecast);
-    console.log('Does it have forecast_note?', readings[0]?.forecast_note);
-
-    const latest = readings[0];
-
-    // Sensor cards
-    const temp = getReadingValue(latest, ['temp_mean', 'temperature', 'temp', 't']);
+    // Sensor cards from advisory
+    const input = advisory.input || {};
+    const temp = input.temp_mean;
     dom.tempValue.textContent = temp !== undefined && temp !== null ? Number(temp).toFixed(1) : '--';
-
-    const hum = getReadingValue(latest, ['humidity_mean', 'humidity', 'hum', 'h']);
+    const hum = input.humidity_mean;
     dom.humidityValue.textContent = hum !== undefined && hum !== null ? Number(hum).toFixed(0) : '--';
-
-    const rain = getReadingValue(latest, ['precipitation_mm', 'precipitation', 'rain', 'rainfall', 'r']);
+    const rain = input.precipitation_mm;
     dom.rainfallValue.textContent = rain !== undefined && rain !== null ? Number(rain).toFixed(1) : '--';
 
-    const label = latest.advisory_label || 'No advisory';
+    const label = advisory.advisory_label || 'No advisory';
     const cls = getAdvisoryClass(label);
     dom.advisoryValue.innerHTML = `
         <span class="advisory-badge ${cls}">${truncateAdvisory(label, 50)}</span>
     `;
 
     // Forecast note
-    const forecastNote = latest.forecast_note || '';
+    const forecastNote = advisory.forecast_note || '';
     document.getElementById('forecast-note').textContent = forecastNote;
 
-    // ---- Weather cards: scan all readings for weather_forecast ----
-    let weatherData = null;
-    for (const r of readings) {
-        if (r.weather_forecast && typeof r.weather_forecast === 'object' && Object.keys(r.weather_forecast).length > 0) {
-            weatherData = r.weather_forecast;
-            break;
-        }
-    }
+    // Weather forecast from advisory
+    const weather = advisory.weather_forecast || {};
+    const rainProb = weather.rain_prob !== undefined ? weather.rain_prob : '--';
+    const windTomorrow = weather.wind_speed !== undefined ? weather.wind_speed : '--';
+    const pressureTomorrow = weather.pressure !== undefined ? weather.pressure : '--';
+    const desc = weather.description || '--';
+
+    document.getElementById('rain-prob-value').textContent = rainProb !== '--' ? rainProb : '--';
+    document.getElementById('wind-value').textContent = windTomorrow !== '--' ? Number(windTomorrow).toFixed(1) : '--';
+    document.getElementById('pressure-value').textContent = pressureTomorrow !== '--' ? Number(pressureTomorrow).toFixed(0) : '--';
+    document.getElementById('weather-desc-value').textContent = desc;
 
     const weatherRow = document.getElementById('weather-cards');
-    if (weatherData) {
-        console.log('Found weather_forecast in reading:', weatherData);
-        const rainProb = weatherData.rain_prob !== undefined ? weatherData.rain_prob : '--';
-        const windTomorrow = weatherData.wind_speed !== undefined ? weatherData.wind_speed : '--';
-        const pressureTomorrow = weatherData.pressure !== undefined ? weatherData.pressure : '--';
-        const desc = weatherData.description || '--';
-
-        document.getElementById('rain-prob-value').textContent = rainProb !== '--' ? rainProb : '--';
-        document.getElementById('wind-value').textContent = windTomorrow !== '--' ? Number(windTomorrow).toFixed(1) : '--';
-        document.getElementById('pressure-value').textContent = pressureTomorrow !== '--' ? Number(pressureTomorrow).toFixed(0) : '--';
-        document.getElementById('weather-desc-value').textContent = desc;
-        weatherRow.style.display = 'grid';
-    } else {
-        console.log('No weather_forecast found in any reading.');
-        document.getElementById('rain-prob-value').textContent = '--';
-        document.getElementById('wind-value').textContent = '--';
-        document.getElementById('pressure-value').textContent = '--';
-        document.getElementById('weather-desc-value').textContent = '--';
+    if (weather.rain_prob === undefined && !weather.description && !weather.wind_speed) {
         weatherRow.style.display = 'none';
+    } else {
+        weatherRow.style.display = 'grid';
+    }
+
+    // Update last updated time using advisory's predicted_at if available
+    if (advisory.predicted_at) {
+        dom.lastUpdated.textContent = new Date(advisory.predicted_at).toLocaleString();
+    } else {
+        dom.lastUpdated.textContent = new Date().toLocaleString();
     }
 }
 
-// ─── TABLE, CHARTS, REFRESH, INIT (unchanged) ───
-
+// ─── RENDER TABLE (from history) ──────────────
 function renderTable(readings) {
+    // same as before
     const tbody = dom.advisoryBody;
     const countEl = dom.advisoryCount;
     if (!readings || readings.length === 0) {
@@ -207,6 +211,8 @@ function renderTable(readings) {
     tbody.innerHTML = html;
 }
 
+// ─── RENDER CHARTS (from history) ────────────
+// (same as before – unchanged)
 function updateOrCreateChart(canvasId, label, color, dataPoints, unit = '') {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return null;
@@ -297,33 +303,27 @@ function renderCharts(readings) {
     updateOrCreateChart('rainfall-chart', 'Rainfall', colors.rainfall, data, 'mm');
 }
 
+// ─── MAIN UPDATE ──────────────────────────────
 async function refreshDashboard() {
     try {
-        if (isFirstLoad) {
-            dom.tempValue.textContent = '…';
-            dom.humidityValue.textContent = '…';
-            dom.rainfallValue.textContent = '…';
-            dom.advisoryValue.innerHTML = `<span class="no-data-text">Loading…</span>`;
-        }
+        // 1. Get current advisory from Firebase (live data)
+        const advisory = await fetchCurrentAdvisory();
+        renderCurrentAdvisory(advisory);
+
+        // 2. Get history for charts and table (from Render backend)
         const result = await fetchHistoryData();
-        if (!result || !result.readings || result.readings.length === 0) {
-            currentData = { readings: [], deviceId: result?.device_id || CONFIG.DEVICE_ID, count: 0 };
-            renderCards([]);
+        if (result && result.readings && result.readings.length > 0) {
+            const sorted = [...result.readings].sort((a, b) => new Date(b.predicted_at) - new Date(a.predicted_at));
+            currentData = { readings: sorted, deviceId: result.device_id || CONFIG.DEVICE_ID, count: result.count || sorted.length };
+            dom.deviceId.textContent = currentData.deviceId.toUpperCase();
+            renderTable(sorted);
+            renderCharts(sorted);
+        } else {
+            // If no history, clear table and charts
             renderTable([]);
             renderCharts([]);
-            dom.lastUpdated.textContent = new Date().toLocaleString();
-            dom.statusDot.className = 'dot paused';
-            if (isFirstLoad) dom.advisoryValue.innerHTML = `<span class="no-data-text">No data available</span>`;
-            isFirstLoad = false;
-            return;
         }
-        const sorted = [...result.readings].sort((a, b) => new Date(b.predicted_at) - new Date(a.predicted_at));
-        currentData = { readings: sorted, deviceId: result.device_id || CONFIG.DEVICE_ID, count: result.count || sorted.length };
-        dom.deviceId.textContent = currentData.deviceId.toUpperCase();
-        renderCards(sorted);
-        renderTable(sorted);
-        renderCharts(sorted);
-        dom.lastUpdated.textContent = new Date().toLocaleString();
+
         dom.statusDot.className = 'dot';
         if (isFirstLoad) isFirstLoad = false;
     } catch (err) {
@@ -332,12 +332,14 @@ async function refreshDashboard() {
     }
 }
 
+// ─── AUTO-REFRESH ────────────────────────────
 function startAutoRefresh() {
     if (refreshTimer) clearInterval(refreshTimer);
     refreshTimer = setInterval(refreshDashboard, CONFIG.REFRESH_INTERVAL_MS);
     dom.refreshLabel.textContent = `Auto-refresh every ${CONFIG.REFRESH_INTERVAL_MS / 1000}s`;
 }
 
+// ─── INIT ─────────────────────────────────────
 async function init() {
     dom.tempValue.textContent = '…';
     dom.humidityValue.textContent = '…';
