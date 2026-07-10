@@ -27,4 +27,7 @@ jobs:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           FIREBASE_DB_URL: "https://iot01-3f1ea-default-rtdb.firebaseio.com"
           DEVICE_ID: "esp32_001"
+          BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+          BREVO_SENDER_EMAIL: ${{ secrets.BREVO_SENDER_EMAIL }}
+          BREVO_SENDER_NAME: "Smart Farm Advisory"
         run: python github_actions/predict_advisory.py
