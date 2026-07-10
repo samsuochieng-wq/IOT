@@ -1,77 +1,102 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-
-    <meta charset="UTF-8">
-
-    <title>Smart Farm Registration</title>
-
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-
-    <style>
-
-        body{
-            font-family:Arial;
-            max-width:500px;
-            margin:auto;
-            margin-top:60px;
-            padding:20px;
-        }
-
-        input{
-            width:100%;
-            padding:12px;
-            margin-top:10px;
-            margin-bottom:20px;
-            font-size:16px;
-        }
-
-        button{
-
-            width:100%;
-            padding:14px;
-            font-size:16px;
-            cursor:pointer;
-        }
-
-        #status{
-
-            margin-top:20px;
-            font-weight:bold;
-
-        }
-
-    </style>
-
+<meta charset="UTF-8">
+<title>Smart Farm Advisory</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
 </head>
-
 <body>
 
-<h2>🌱 Smart Farm Advisory Registration</h2>
+  <header class="topbar">
+    <div class="wordmark">
+      <span class="wordmark-icon">🌱</span>
+      <span>Smart Farm Advisory</span>
+    </div>
+    <button id="themeToggle" class="theme-toggle" aria-label="Toggle dark mode" title="Toggle dark mode">
+      <span id="themeIcon">🌙</span>
+    </button>
+  </header>
 
-<p>
+  <main>
 
-Register your email to receive AI-generated farming advisories.
+    <!-- Live instrument panel -->
+    <section class="panel" aria-labelledby="panelHeading">
+      <div class="panel-head">
+        <h1 id="panelHeading">Live Field Reading</h1>
+        <div class="device-select-wrap">
+          <label for="deviceSelect" class="sr-only">Device</label>
+          <select id="deviceSelect" class="device-select">
+            <option value="esp32_001">Farm A · ESP32_001</option>
+          </select>
+        </div>
+      </div>
 
-</p>
+      <div class="readouts" id="readouts">
+        <div class="readout">
+          <div class="readout-value" id="valTemp">--</div>
+          <div class="readout-label">Temperature</div>
+        </div>
+        <div class="readout">
+          <div class="readout-value" id="valHumidity">--</div>
+          <div class="readout-label">Humidity</div>
+        </div>
+        <div class="readout">
+          <div class="readout-value" id="valRain">--</div>
+          <div class="readout-label">Rain</div>
+        </div>
+      </div>
 
-<input
-type="email"
-id="email"
-placeholder="Enter your email address"
->
+      <div class="advisory-card" id="advisoryCard" data-state="normal">
+        <div class="advisory-eyebrow">
+          <span class="pulse-dot" id="pulseDot"></span>
+          <span>AI Advisory</span>
+        </div>
+        <div class="advisory-label" id="advisoryLabel">Loading&hellip;</div>
+        <p class="advisory-explanation" id="advisoryExplanation">
+          Fetching the latest reading from the field sensor.
+        </p>
+      </div>
 
-<button id="registerBtn">
+      <div class="meta-row">
+        <span id="lastUpdate">Last update: &mdash;</span>
+        <span id="subscriberCount">&mdash; farmers subscribed</span>
+      </div>
+    </section>
 
-Register
+    <!-- Registration -->
+    <section class="panel register-panel" aria-labelledby="registerHeading">
+      <h2 id="registerHeading">Get advisories by email</h2>
+      <p class="register-copy">
+        Register once. You'll receive an email whenever conditions call for action &mdash;
+        irrigation, fungal risk, or fertilizer timing.
+      </p>
 
-</button>
+      <form id="registerForm" novalidate>
+        <label for="email" class="sr-only">Email address</label>
+        <input
+          type="email"
+          id="email"
+          placeholder="you@example.com"
+          autocomplete="email"
+          required
+        >
+        <button type="submit" id="registerBtn">Register</button>
+      </form>
 
-<div id="status"></div>
+      <div id="status" role="status" aria-live="polite"></div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <span>Smart Farm Advisory &middot; data refreshes every 30s</span>
+  </footer>
 
 <script type="module" src="app.js"></script>
-
 </body>
-
 </html>
