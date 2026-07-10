@@ -21,7 +21,6 @@ if (signOutBtn) {
     localStorage.removeItem('smartfarm_registered');
     localStorage.removeItem('smartfarm_email');
     localStorage.removeItem('smartfarm_name');
-    // Attempt Firebase sign-out if config exists
     import('./firebase-config.js').then(({ auth }) => {
       auth.signOut();
     }).catch(() => {});
@@ -42,7 +41,6 @@ let currentData = { readings: [], deviceId: '', count: 0 };
 let refreshTimer = null;
 let isFirstLoad = true;
 
-// ─── DOM REFS ──────────────────────────────
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
 
@@ -114,7 +112,7 @@ async function fetchHistoryData() {
     }
 }
 
-// ─── RENDER CARDS (INCLUDES WEATHER) ────────
+// ─── RENDER CARDS (Enhanced) ─────────────────
 function renderCards(readings) {
     if (!readings || readings.length === 0) {
         dom.tempValue.textContent = '--';
@@ -130,49 +128,56 @@ function renderCards(readings) {
         return;
     }
 
+    // ---- Sensor cards (use the very first reading - most recent) ----
     const latest = readings[0];
 
-    // Temperature
     const temp = getReadingValue(latest, ['temp_mean', 'temperature', 'temp', 't']);
     dom.tempValue.textContent = temp !== undefined && temp !== null ? Number(temp).toFixed(1) : '--';
 
-    // Humidity
     const hum = getReadingValue(latest, ['humidity_mean', 'humidity', 'hum', 'h']);
     dom.humidityValue.textContent = hum !== undefined && hum !== null ? Number(hum).toFixed(0) : '--';
 
-    // Rainfall
     const rain = getReadingValue(latest, ['precipitation_mm', 'precipitation', 'rain', 'rainfall', 'r']);
     dom.rainfallValue.textContent = rain !== undefined && rain !== null ? Number(rain).toFixed(1) : '--';
 
-    // Advisory
     const label = latest.advisory_label || 'No advisory';
     const cls = getAdvisoryClass(label);
     dom.advisoryValue.innerHTML = `
         <span class="advisory-badge ${cls}">${truncateAdvisory(label, 50)}</span>
     `;
 
-    // Forecast note
+    // ---- Forecast note (from the latest) ----
     const forecastNote = latest.forecast_note || '';
     document.getElementById('forecast-note').textContent = forecastNote;
 
-    // Weather forecast (root level)
-    const weather = latest.weather_forecast || {};
-    const rainProb = weather.rain_prob !== undefined ? weather.rain_prob : '--';
-    const windTomorrow = weather.wind_speed !== undefined ? weather.wind_speed : '--';
-    const pressureTomorrow = weather.pressure !== undefined ? weather.pressure : '--';
-    const desc = weather.description || '--';
+    // ---- Weather cards: find the first reading that has weather_forecast ----
+    let weatherData = null;
+    for (const r of readings) {
+        if (r.weather_forecast && typeof r.weather_forecast === 'object' && Object.keys(r.weather_forecast).length > 0) {
+            weatherData = r.weather_forecast;
+            break;
+        }
+    }
 
-    document.getElementById('rain-prob-value').textContent = rainProb !== '--' ? rainProb : '--';
-    document.getElementById('wind-value').textContent = windTomorrow !== '--' ? Number(windTomorrow).toFixed(1) : '--';
-    document.getElementById('pressure-value').textContent = pressureTomorrow !== '--' ? Number(pressureTomorrow).toFixed(0) : '--';
-    document.getElementById('weather-desc-value').textContent = desc;
-
-    // Show/hide weather row
     const weatherRow = document.getElementById('weather-cards');
-    if (weather.rain_prob === undefined && !weather.description && !weather.wind_speed) {
-        weatherRow.style.display = 'none';
-    } else {
+    if (weatherData) {
+        const rainProb = weatherData.rain_prob !== undefined ? weatherData.rain_prob : '--';
+        const windTomorrow = weatherData.wind_speed !== undefined ? weatherData.wind_speed : '--';
+        const pressureTomorrow = weatherData.pressure !== undefined ? weatherData.pressure : '--';
+        const desc = weatherData.description || '--';
+
+        document.getElementById('rain-prob-value').textContent = rainProb !== '--' ? rainProb : '--';
+        document.getElementById('wind-value').textContent = windTomorrow !== '--' ? Number(windTomorrow).toFixed(1) : '--';
+        document.getElementById('pressure-value').textContent = pressureTomorrow !== '--' ? Number(pressureTomorrow).toFixed(0) : '--';
+        document.getElementById('weather-desc-value').textContent = desc;
         weatherRow.style.display = 'grid';
+    } else {
+        // No forecast data found – hide the row
+        document.getElementById('rain-prob-value').textContent = '--';
+        document.getElementById('wind-value').textContent = '--';
+        document.getElementById('pressure-value').textContent = '--';
+        document.getElementById('weather-desc-value').textContent = '--';
+        weatherRow.style.display = 'none';
     }
 }
 
