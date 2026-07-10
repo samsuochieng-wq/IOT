@@ -1,5 +1,5 @@
 // ==========================================
-//  SMART FARM – DASHBOARD (Full)
+//  SMART FARM – DASHBOARD (Debug Version)
 // ==========================================
 
 // ─── CHECK IF REGISTERED ──────────────────
@@ -63,11 +63,9 @@ const dom = {
 // ─── HELPERS ──────────────────────────────────
 function getReadingValue(reading, keys) {
     if (!reading) return undefined;
-    // Try root level first
     for (const key of keys) {
         if (reading[key] !== undefined && reading[key] !== null) return reading[key];
     }
-    // Try inside 'input' object
     const input = reading.input || {};
     for (const key of keys) {
         if (input[key] !== undefined && input[key] !== null) return input[key];
@@ -112,7 +110,7 @@ async function fetchHistoryData() {
     }
 }
 
-// ─── RENDER CARDS (Enhanced) ─────────────────
+// ─── RENDER CARDS (Enhanced + Debug) ────────
 function renderCards(readings) {
     if (!readings || readings.length === 0) {
         dom.tempValue.textContent = '--';
@@ -128,9 +126,14 @@ function renderCards(readings) {
         return;
     }
 
-    // ---- Sensor cards (use the very first reading - most recent) ----
+    // ---- DEBUG: Log the first reading ----
+    console.log('First reading:', readings[0]);
+    console.log('Does it have weather_forecast?', readings[0]?.weather_forecast);
+    console.log('Does it have forecast_note?', readings[0]?.forecast_note);
+
     const latest = readings[0];
 
+    // Sensor cards
     const temp = getReadingValue(latest, ['temp_mean', 'temperature', 'temp', 't']);
     dom.tempValue.textContent = temp !== undefined && temp !== null ? Number(temp).toFixed(1) : '--';
 
@@ -146,11 +149,11 @@ function renderCards(readings) {
         <span class="advisory-badge ${cls}">${truncateAdvisory(label, 50)}</span>
     `;
 
-    // ---- Forecast note (from the latest) ----
+    // Forecast note
     const forecastNote = latest.forecast_note || '';
     document.getElementById('forecast-note').textContent = forecastNote;
 
-    // ---- Weather cards: find the first reading that has weather_forecast ----
+    // ---- Weather cards: scan all readings for weather_forecast ----
     let weatherData = null;
     for (const r of readings) {
         if (r.weather_forecast && typeof r.weather_forecast === 'object' && Object.keys(r.weather_forecast).length > 0) {
@@ -161,6 +164,7 @@ function renderCards(readings) {
 
     const weatherRow = document.getElementById('weather-cards');
     if (weatherData) {
+        console.log('Found weather_forecast in reading:', weatherData);
         const rainProb = weatherData.rain_prob !== undefined ? weatherData.rain_prob : '--';
         const windTomorrow = weatherData.wind_speed !== undefined ? weatherData.wind_speed : '--';
         const pressureTomorrow = weatherData.pressure !== undefined ? weatherData.pressure : '--';
@@ -172,7 +176,7 @@ function renderCards(readings) {
         document.getElementById('weather-desc-value').textContent = desc;
         weatherRow.style.display = 'grid';
     } else {
-        // No forecast data found – hide the row
+        console.log('No weather_forecast found in any reading.');
         document.getElementById('rain-prob-value').textContent = '--';
         document.getElementById('wind-value').textContent = '--';
         document.getElementById('pressure-value').textContent = '--';
@@ -181,7 +185,8 @@ function renderCards(readings) {
     }
 }
 
-// ─── RENDER TABLE ────────────────────────────
+// ─── TABLE, CHARTS, REFRESH, INIT (unchanged) ───
+
 function renderTable(readings) {
     const tbody = dom.advisoryBody;
     const countEl = dom.advisoryCount;
@@ -202,7 +207,6 @@ function renderTable(readings) {
     tbody.innerHTML = html;
 }
 
-// ─── RENDER CHARTS ────────────────────────────
 function updateOrCreateChart(canvasId, label, color, dataPoints, unit = '') {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return null;
@@ -293,7 +297,6 @@ function renderCharts(readings) {
     updateOrCreateChart('rainfall-chart', 'Rainfall', colors.rainfall, data, 'mm');
 }
 
-// ─── MAIN UPDATE ──────────────────────────────
 async function refreshDashboard() {
     try {
         if (isFirstLoad) {
@@ -329,14 +332,12 @@ async function refreshDashboard() {
     }
 }
 
-// ─── AUTO-REFRESH ────────────────────────────
 function startAutoRefresh() {
     if (refreshTimer) clearInterval(refreshTimer);
     refreshTimer = setInterval(refreshDashboard, CONFIG.REFRESH_INTERVAL_MS);
     dom.refreshLabel.textContent = `Auto-refresh every ${CONFIG.REFRESH_INTERVAL_MS / 1000}s`;
 }
 
-// ─── INIT ─────────────────────────────────────
 async function init() {
     dom.tempValue.textContent = '…';
     dom.humidityValue.textContent = '…';
