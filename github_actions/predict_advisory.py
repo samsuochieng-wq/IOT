@@ -3,8 +3,8 @@ predict_advisory.py
 --------------------
 Reads the latest sensor readings for a device from Firebase Realtime Database,
 computes aggregates over a configurable time window (e.g., 6 hours),
-runs the trained model to produce an advisory label, then adjusts the
-advisory based on tomorrow's rain probability (if provided via RAIN_PROB).
+runs the trained model (which now includes wind_speed_10m_mean and pressure_msl_mean)
+to produce an advisory label, then adjusts based on tomorrow's rain probability.
 Writes the result back to the database and emails subscribers.
 """
 
@@ -187,8 +187,10 @@ def fetch_recent_aggregate(device_id: str, window_hours: int = 24):
         return fetch_daily_aggregate(device_id)
 
     df = pd.DataFrame(readings)
-    # Ensure columns exist
-    for col in ['temp_max', 'temp_min', 'temp_mean', 'humidity_mean', 'precipitation_mm']:
+    # Ensure all expected columns exist; if not, fill with defaults (0)
+    expected_cols = ['temp_max', 'temp_min', 'temp_mean', 'humidity_mean', 'precipitation_mm',
+                     'wind_speed_10m_mean', 'pressure_msl_mean']
+    for col in expected_cols:
         if col not in df.columns:
             df[col] = 0
 
@@ -198,6 +200,8 @@ def fetch_recent_aggregate(device_id: str, window_hours: int = 24):
         'temp_mean': df['temp_mean'].mean(),
         'humidity_mean': df['humidity_mean'].mean(),
         'precipitation_mm': df['precipitation_mm'].sum(),
+        'wind_speed_10m_mean': df['wind_speed_10m_mean'].mean(),
+        'pressure_msl_mean': df['pressure_msl_mean'].mean(),
     }
     logger.info(f"Computed aggregate over {len(readings)} readings in the last {window_hours} hours.")
     return agg
@@ -214,6 +218,10 @@ def fetch_daily_aggregate(device_id: str):
         logger.info(f"No daily_aggregate data found for device {device_id}. Nothing to predict yet.")
         sys.exit(0)
 
+    # Ensure new fields exist; if not, add defaults
+    for field in ['wind_speed_10m_mean', 'pressure_msl_mean']:
+        if field not in data:
+            data[field] = 0
     return data
 
 
@@ -254,7 +262,7 @@ def adjust_advisory_with_weather(original_label, rain_prob):
 # Save advisory
 # ---------------------------------------------------
 
-def save_advisory(device_id: str, label: str, reading: dict, forecast_note: str = ""):
+def save_advisory(device_id: str, label: str, reading: dict, forecast_note: str = "", weather_forecast: dict = None):
     predicted_at = datetime.now(timezone.utc).isoformat()
 
     record = {
@@ -264,6 +272,9 @@ def save_advisory(device_id: str, label: str, reading: dict, forecast_note: str 
         "forecast_note": forecast_note,
         "predicted_at": predicted_at,
     }
+
+    if weather_forecast:
+        record["weather_forecast"] = weather_forecast
 
     try:
         db.reference(f"devices/{device_id}/current_advisory").set(record)
@@ -308,10 +319,11 @@ def load_subscriber_emails(device_id: str) -> list:
 
 
 # ---------------------------------------------------
-# Email generation
+# Email generation (unchanged, but we keep it)
 # ---------------------------------------------------
 
-def build_email_html(device_id: str, label: str, reading: dict, window_hours: int, forecast_note: str = "") -> str:
+def build_email_html(device_id: str, label: str, reading: dict, window_hours: int,
+                     forecast_note: str = "", weather_forecast: dict = None) -> str:
     info = RECOMMENDATIONS.get(label, {
         "emoji": "ℹ️",
         "summary": "Advisory update available.",
@@ -319,6 +331,20 @@ def build_email_html(device_id: str, label: str, reading: dict, window_hours: in
     })
 
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+    weather_html = ""
+    if weather_forecast and any(weather_forecast.values()):
+        weather_html = '<div style="margin-top: 16px; padding: 12px; background-color: #f0f7fa; border-radius: 6px;">'
+        weather_html += '<p style="font-weight: bold; font-size: 13px; margin: 0 0 6px 0; color: #1a3a4a;">🌤️ Tomorrow\'s Forecast</p>'
+        if weather_forecast.get('description'):
+            weather_html += f'<p style="font-size: 13px; margin: 2px 0;">📝 {weather_forecast["description"].capitalize()}</p>'
+        if weather_forecast.get('rain_prob') is not None:
+            weather_html += f'<p style="font-size: 13px; margin: 2px 0;">🌧️ Rain probability: {weather_forecast["rain_prob"]}%</p>'
+        if weather_forecast.get('wind_speed') is not None:
+            weather_html += f'<p style="font-size: 13px; margin: 2px 0;">💨 Wind speed: {weather_forecast["wind_speed"]} m/s</p>'
+        if weather_forecast.get('pressure') is not None:
+            weather_html += f'<p style="font-size: 13px; margin: 2px 0;">📊 Pressure: {weather_forecast["pressure"]} hPa</p>'
+        weather_html += '</div>'
 
     html = f"""\
 <html>
@@ -366,7 +392,12 @@ def build_email_html(device_id: str, label: str, reading: dict, window_hours: in
             <td style="padding: 8px 10px; color: #666;">Precipitation</td>
             <td style="padding: 8px 10px; text-align: right; font-weight: bold;">{reading.get('precipitation_mm', 'N/A')} mm</td>
           </tr>
+          <!-- NEW: wind and pressure if available -->
+          {f'<tr><td style="padding: 8px 10px; color: #666;">Wind Speed</td><td style="padding: 8px 10px; text-align: right; font-weight: bold;">{reading.get("wind_speed_10m_mean", "N/A")} m/s</td></tr>' if reading.get("wind_speed_10m_mean") is not None else ''}
+          {f'<tr style="background-color: #f4f6f5;"><td style="padding: 8px 10px; color: #666;">Pressure</td><td style="padding: 8px 10px; text-align: right; font-weight: bold;">{reading.get("pressure_msl_mean", "N/A")} hPa</td></tr>' if reading.get("pressure_msl_mean") is not None else ''}
         </table>
+
+        {weather_html}
 
         <p style="font-size: 11px; color: #999999; margin-top: 24px;">
           Generated {timestamp} · This is an automated advisory from your farm monitoring system.
@@ -379,7 +410,8 @@ def build_email_html(device_id: str, label: str, reading: dict, window_hours: in
     return html
 
 
-def build_email_text(device_id: str, label: str, reading: dict, window_hours: int, forecast_note: str = "") -> str:
+def build_email_text(device_id: str, label: str, reading: dict, window_hours: int,
+                     forecast_note: str = "", weather_forecast: dict = None) -> str:
     info = RECOMMENDATIONS.get(label, {"summary": "Advisory update available.", "action": "Check your dashboard."})
     text = (
         f"Smart Farm Advisory - Device {device_id}\n\n"
@@ -395,6 +427,21 @@ def build_email_text(device_id: str, label: str, reading: dict, window_hours: in
     text += f"  Mean Temp: {reading.get('temp_mean', 'N/A')} C\n"
     text += f"  Humidity: {reading.get('humidity_mean', 'N/A')} %\n"
     text += f"  Precipitation: {reading.get('precipitation_mm', 'N/A')} mm\n"
+    if reading.get('wind_speed_10m_mean') is not None:
+        text += f"  Wind Speed: {reading['wind_speed_10m_mean']} m/s\n"
+    if reading.get('pressure_msl_mean') is not None:
+        text += f"  Pressure: {reading['pressure_msl_mean']} hPa\n"
+
+    if weather_forecast:
+        text += "\n--- Tomorrow's Forecast ---\n"
+        if weather_forecast.get('description'):
+            text += f"  Weather: {weather_forecast['description'].capitalize()}\n"
+        if weather_forecast.get('rain_prob') is not None:
+            text += f"  Rain probability: {weather_forecast['rain_prob']}%\n"
+        if weather_forecast.get('wind_speed') is not None:
+            text += f"  Wind speed: {weather_forecast['wind_speed']} m/s\n"
+        if weather_forecast.get('pressure') is not None:
+            text += f"  Pressure: {weather_forecast['pressure']} hPa\n"
     return text
 
 
@@ -436,14 +483,15 @@ def send_email(to_email: str, subject: str, html_body: str, text_body: str) -> b
         return False
 
 
-def send_all_emails(device_id: str, label: str, reading: dict, emails: list, window_hours: int, forecast_note: str = ""):
+def send_all_emails(device_id: str, label: str, reading: dict, emails: list, window_hours: int,
+                    forecast_note: str = "", weather_forecast: dict = None):
     if not emails:
         logger.info("No subscriber emails to notify.")
         return
 
     subject = f"🌱 Farm Advisory: {label} - Device {device_id}"
-    html_body = build_email_html(device_id, label, reading, window_hours, forecast_note)
-    text_body = build_email_text(device_id, label, reading, window_hours, forecast_note)
+    html_body = build_email_html(device_id, label, reading, window_hours, forecast_note, weather_forecast)
+    text_body = build_email_text(device_id, label, reading, window_hours, forecast_note, weather_forecast)
 
     logger.info("==============================")
     logger.info("Sending advisory emails")
@@ -481,20 +529,67 @@ def main():
         window_hours = 24
     logger.info(f"Using aggregation window of {window_hours} hours.")
 
+    # --- Collect weather data from environment ---
+    weather_forecast = {}
+    rain_prob = os.environ.get("RAIN_PROB")
+    if rain_prob:
+        try:
+            weather_forecast['rain_prob'] = int(rain_prob)
+        except ValueError:
+            pass
+    wind_tomorrow = os.environ.get("TOMORROW_WIND")
+    if wind_tomorrow:
+        try:
+            weather_forecast['wind_speed'] = float(wind_tomorrow)
+        except ValueError:
+            pass
+    pressure_tomorrow = os.environ.get("TOMORROW_PRESSURE")
+    if pressure_tomorrow:
+        try:
+            weather_forecast['pressure'] = float(pressure_tomorrow)
+        except ValueError:
+            pass
+    desc = os.environ.get("TOMORROW_DESC")
+    if desc:
+        weather_forecast['description'] = desc
+
+    # --- Read today's wind/pressure from environment ---
+    today_wind = os.environ.get("TODAY_WIND")
+    today_pressure = os.environ.get("TODAY_PRESSURE")
+
+    # Load model
     bundle = load_model()
     model = bundle["model"]
     encoder = bundle["label_encoder"]
-    feature_order = bundle["feature_order"]
+    feature_order = bundle["feature_order"]  # includes new features
 
-    # Read sensor data
+    # Read sensor data (aggregated from Firebase history)
     reading = fetch_recent_aggregate(device_id, window_hours)
 
+    # If wind/pressure are missing from the aggregate (e.g., because ESP32 doesn't send them),
+    # we fill them with the OpenWeatherMap today's values.
+    # Also if they are 0, we could use weather API as fallback.
+    if reading.get('wind_speed_10m_mean') is None or reading.get('wind_speed_10m_mean') == 0:
+        if today_wind:
+            reading['wind_speed_10m_mean'] = float(today_wind)
+        else:
+            reading['wind_speed_10m_mean'] = 0.0
+
+    if reading.get('pressure_msl_mean') is None or reading.get('pressure_msl_mean') == 0:
+        if today_pressure:
+            reading['pressure_msl_mean'] = float(today_pressure)
+        else:
+            reading['pressure_msl_mean'] = 0.0
+
+    # Prepare features dict (ensure all keys exist)
     features = {
         "temp_max": reading.get("temp_max"),
         "temp_min": reading.get("temp_min"),
         "temp_mean": reading.get("temp_mean"),
         "humidity_mean": reading.get("humidity_mean"),
         "precipitation_mm": reading.get("precipitation_mm", 0),
+        "wind_speed_10m_mean": reading.get("wind_speed_10m_mean", 0.0),
+        "pressure_msl_mean": reading.get("pressure_msl_mean", 0.0),
     }
 
     missing = [k for k, v in features.items() if v is None]
@@ -513,30 +608,20 @@ def main():
 
     logger.info(f"Original advisory: {original_label}")
 
-    # Get rain probability from environment (if provided)
-    rain_prob_str = os.environ.get("RAIN_PROB")
-    rain_prob = None
-    if rain_prob_str:
-        try:
-            rain_prob = int(rain_prob_str)
-            logger.info(f"Tomorrow's rain probability: {rain_prob}%")
-        except ValueError:
-            logger.warning(f"Invalid RAIN_PROB value: {rain_prob_str}, ignoring.")
-
-    # Adjust advisory based on weather
-    adjusted_label, forecast_note = adjust_advisory_with_weather(original_label, rain_prob)
+    # Adjust advisory based on rain probability
+    adjusted_label, forecast_note = adjust_advisory_with_weather(original_label, weather_forecast.get('rain_prob'))
 
     if adjusted_label != original_label:
         logger.info(f"Advisory adjusted based on forecast: {adjusted_label}")
     else:
         logger.info("No adjustment needed.")
 
-    # Save to Firebase
-    save_advisory(device_id, adjusted_label, features, forecast_note)
+    # Save to Firebase including weather_forecast and the full input (with wind/pressure)
+    save_advisory(device_id, adjusted_label, features, forecast_note, weather_forecast)
 
     # Send emails
     emails = load_subscriber_emails(device_id)
-    send_all_emails(device_id, adjusted_label, features, emails, window_hours, forecast_note)
+    send_all_emails(device_id, adjusted_label, features, emails, window_hours, forecast_note, weather_forecast)
 
 
 if __name__ == "__main__":
