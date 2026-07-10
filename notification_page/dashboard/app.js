@@ -11,6 +11,26 @@
   }
 })();
 
+// ─── USER GREETING & SIGN OUT ──────────────
+const userGreeting = document.getElementById('userGreeting');
+const signOutBtn = document.getElementById('signOutBtn');
+
+const name = localStorage.getItem('smartfarm_name') || 'Farmer';
+if (userGreeting) userGreeting.textContent = `Hello, ${name} 👋`;
+
+if (signOutBtn) {
+  signOutBtn.addEventListener('click', () => {
+    localStorage.removeItem('smartfarm_registered');
+    localStorage.removeItem('smartfarm_email');
+    localStorage.removeItem('smartfarm_name');
+    // Optionally sign out from Firebase (if you have firebase-config.js in dashboard)
+    import('./firebase-config.js').then(({ auth }) => {
+      auth.signOut();
+    }).catch(() => {});
+    window.location.href = '../';
+  });
+}
+
 // ─── CONFIGURATION ──────────────────────────────────────────────
 const CONFIG = {
     API_BASE: 'https://smartfarm-4z48.onrender.com',
