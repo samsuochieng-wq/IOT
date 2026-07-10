@@ -1,150 +1,151 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>🌱 Smart Farm Dashboard</title>
-
-    <!-- Chart.js via CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js">
-    </script>
-
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz@14..32&display=swap" rel="stylesheet" />
-
-    <!-- Custom CSS -->
-    <link rel="stylesheet" href="style.css" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🌱 Smart Farm Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz@14..32&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
 </head>
-
 <body>
-    <div class="dashboard">
+  <div class="dashboard">
 
-        <!-- ===== HEADER ===== -->
-        <header class="header">
-            <div class="header-left">
-                <span class="logo-icon">🌱</span>
-                <h1>Smart Farm <span>Dashboard</span></h1>
-            </div>
-            <div class="header-right">
-                <span class="device-label">Device</span>
-                <span class="device-id" id="device-id-display">ESP32-001</span>
-                <!-- NEW: User greeting & sign-out -->
-                <span class="user-greeting" id="userGreeting"></span>
-                <button id="signOutBtn" class="sign-out-btn">Sign Out</button>
-            </div>
-        </header>
+    <!-- HEADER -->
+    <header class="header">
+      <div class="header-left">
+        <span class="logo-icon">🌱</span>
+        <h1>Smart Farm <span>Dashboard</span></h1>
+      </div>
+      <div class="header-right">
+        <span class="device-label">Device</span>
+        <span class="device-id" id="device-id-display">ESP32-001</span>
+        <span class="user-greeting" id="userGreeting"></span>
+        <button id="signOutBtn" class="sign-out-btn">Sign Out</button>
+      </div>
+    </header>
 
-        <!-- ===== SENSOR CARDS ===== -->
-        <section class="cards-grid" id="sensor-cards">
-            <!-- Temperature -->
-            <div class="card card-temp" id="card-temp">
-                <div class="card-icon">🌡️</div>
-                <div class="card-content">
-                    <span class="card-label">Temperature</span>
-                    <span class="card-value" id="temp-value">--</span>
-                    <span class="card-unit">°C</span>
-                </div>
-            </div>
-
-            <!-- Humidity -->
-            <div class="card card-humidity" id="card-humidity">
-                <div class="card-icon">💧</div>
-                <div class="card-content">
-                    <span class="card-label">Humidity</span>
-                    <span class="card-value" id="humidity-value">--</span>
-                    <span class="card-unit">%</span>
-                </div>
-            </div>
-
-            <!-- Rainfall -->
-            <div class="card card-rainfall" id="card-rainfall">
-                <div class="card-icon">🌧️</div>
-                <div class="card-content">
-                    <span class="card-label">Rainfall</span>
-                    <span class="card-value" id="rainfall-value">--</span>
-                    <span class="card-unit">mm</span>
-                </div>
-            </div>
-
-            <!-- Current Advisory -->
-            <div class="card card-advisory" id="card-advisory">
-                <div class="card-icon">📋</div>
-                <div class="card-content">
-                    <span class="card-label">Current Advisory</span>
-                    <div id="advisory-value">
-                        <span class="no-data-text">--</span>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- ===== CHARTS ===== -->
-        <section class="charts-grid" id="charts-grid">
-            <!-- Temperature Chart -->
-            <div class="chart-container">
-                <h3>🌡️ Temperature Trend</h3>
-                <div class="chart-wrapper">
-                    <canvas id="temp-chart"></canvas>
-                </div>
-            </div>
-
-            <!-- Humidity Chart -->
-            <div class="chart-container">
-                <h3>💧 Humidity Trend</h3>
-                <div class="chart-wrapper">
-                    <canvas id="humidity-chart"></canvas>
-                </div>
-            </div>
-
-            <!-- Rainfall Chart -->
-            <div class="chart-container">
-                <h3>🌧️ Rainfall Trend</h3>
-                <div class="chart-wrapper">
-                    <canvas id="rainfall-chart"></canvas>
-                </div>
-            </div>
-        </section>
-
-        <!-- ===== RECENT ADVISORIES TABLE ===== -->
-        <section class="advisories-section" id="advisories-section">
-            <div class="section-header">
-                <h3>📋 Recent Advisories</h3>
-                <span class="count-badge" id="advisory-count">0 advisories</span>
-            </div>
-            <div class="table-responsive">
-                <table class="advisories-table">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Advisory</th>
-                        </tr>
-                    </thead>
-                    <tbody id="advisories-body">
-                        <tr class="empty-row">
-                            <td colspan="2">No advisory data available</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </section>
-
-        <!-- ===== FOOTER ===== -->
-        <div class="footer-bar">
-            <div class="last-updated">
-                <span>🔄 Last updated:</span>
-                <span class="timestamp" id="last-updated">--</span>
-            </div>
-            <div class="refresh-status">
-                <span class="dot" id="status-dot"></span>
-                <span id="refresh-label">Auto-refresh every 30s</span>
-            </div>
+    <!-- SENSOR CARDS -->
+    <section class="cards-grid" id="sensor-cards">
+      <div class="card card-temp" id="card-temp">
+        <div class="card-icon">🌡️</div>
+        <div class="card-content">
+          <span class="card-label">Temperature</span>
+          <span class="card-value" id="temp-value">--</span>
+          <span class="card-unit">°C</span>
         </div>
+      </div>
+      <div class="card card-humidity" id="card-humidity">
+        <div class="card-icon">💧</div>
+        <div class="card-content">
+          <span class="card-label">Humidity</span>
+          <span class="card-value" id="humidity-value">--</span>
+          <span class="card-unit">%</span>
+        </div>
+      </div>
+      <div class="card card-rainfall" id="card-rainfall">
+        <div class="card-icon">🌧️</div>
+        <div class="card-content">
+          <span class="card-label">Rainfall</span>
+          <span class="card-value" id="rainfall-value">--</span>
+          <span class="card-unit">mm</span>
+        </div>
+      </div>
+      <div class="card card-advisory" id="card-advisory">
+        <div class="card-icon">📋</div>
+        <div class="card-content">
+          <span class="card-label">Current Advisory</span>
+          <div id="advisory-value">
+            <span class="no-data-text">--</span>
+          </div>
+          <!-- Forecast note -->
+          <div id="forecast-note"></div>
+        </div>
+      </div>
+    </section>
 
+    <!-- WEATHER CARDS (forecast) -->
+    <section class="cards-grid weather-grid" id="weather-cards">
+      <div class="card card-weather" id="card-rain-prob">
+        <div class="card-icon">🌧️</div>
+        <div class="card-content">
+          <span class="card-label">Rain Probability</span>
+          <span class="card-value" id="rain-prob-value">--</span>
+          <span class="card-unit">%</span>
+        </div>
+      </div>
+      <div class="card card-weather" id="card-wind">
+        <div class="card-icon">💨</div>
+        <div class="card-content">
+          <span class="card-label">Wind Speed</span>
+          <span class="card-value" id="wind-value">--</span>
+          <span class="card-unit">m/s</span>
+        </div>
+      </div>
+      <div class="card card-weather" id="card-pressure">
+        <div class="card-icon">📊</div>
+        <div class="card-content">
+          <span class="card-label">Pressure</span>
+          <span class="card-value" id="pressure-value">--</span>
+          <span class="card-unit">hPa</span>
+        </div>
+      </div>
+      <div class="card card-weather" id="card-weather-desc">
+        <div class="card-icon">☁️</div>
+        <div class="card-content">
+          <span class="card-label">Weather</span>
+          <span class="card-value" id="weather-desc-value" style="font-size:1.2rem;">--</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- CHARTS -->
+    <section class="charts-grid" id="charts-grid">
+      <div class="chart-container">
+        <h3>🌡️ Temperature Trend</h3>
+        <div class="chart-wrapper"><canvas id="temp-chart"></canvas></div>
+      </div>
+      <div class="chart-container">
+        <h3>💧 Humidity Trend</h3>
+        <div class="chart-wrapper"><canvas id="humidity-chart"></canvas></div>
+      </div>
+      <div class="chart-container">
+        <h3>🌧️ Rainfall Trend</h3>
+        <div class="chart-wrapper"><canvas id="rainfall-chart"></canvas></div>
+      </div>
+    </section>
+
+    <!-- ADVISORY TABLE -->
+    <section class="advisories-section" id="advisories-section">
+      <div class="section-header">
+        <h3>📋 Recent Advisories</h3>
+        <span class="count-badge" id="advisory-count">0 advisories</span>
+      </div>
+      <div class="table-responsive">
+        <table class="advisories-table">
+          <thead><tr><th>Date</th><th>Advisory</th></tr></thead>
+          <tbody id="advisories-body">
+            <tr class="empty-row"><td colspan="2">No advisory data available</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- FOOTER -->
+    <div class="footer-bar">
+      <div class="last-updated">
+        <span>🔄 Last updated:</span>
+        <span class="timestamp" id="last-updated">--</span>
+      </div>
+      <div class="refresh-status">
+        <span class="dot" id="status-dot"></span>
+        <span id="refresh-label">Auto-refresh every 30s</span>
+      </div>
     </div>
 
-    <!-- Custom JS -->
-    <script src="app.js"></script>
+  </div>
+  <script src="app.js"></script>
 </body>
 </html>
