@@ -176,16 +176,29 @@ def fetch_daily_aggregate(device_id: str):
 # ---------------------------------------------------
 
 def save_advisory(device_id: str, label: str, reading: dict):
+    predicted_at = datetime.now(timezone.utc).isoformat()
+
+    record = {
+        "device_id": device_id,
+        "advisory_label": label,
+        "input": reading,
+        "predicted_at": predicted_at,
+    }
+
     try:
-        db.reference(f"devices/{device_id}/current_advisory").set({
-            "device_id": device_id,
-            "advisory_label": label,
-            "input": reading,
-            "predicted_at": datetime.now(timezone.utc).isoformat(),
-        })
+        db.reference(f"devices/{device_id}/current_advisory").set(record)
         logger.info(f"Advisory written to Realtime Database: {label}")
     except Exception:
         logger.exception("Failed to write current_advisory to Realtime Database.")
+
+    # Also append to history so graphs/trends have something to draw from.
+    # push() generates a unique, time-ordered key - safe for many rapid writes,
+    # unlike using a plain timestamp string which could collide.
+    try:
+        db.reference(f"devices/{device_id}/history").push(record)
+        logger.info("Advisory also appended to history.")
+    except Exception:
+        logger.exception("Failed to append advisory to history - current_advisory was still saved.")
 
 
 # ---------------------------------------------------
