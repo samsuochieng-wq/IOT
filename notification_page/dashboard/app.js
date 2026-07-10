@@ -1,6 +1,16 @@
-/* ============================================================
-   app.js — Smart Farm Dashboard
-   ============================================================ */
+// ==========================================
+//  SMART FARM – DASHBOARD
+// ==========================================
+
+// ─── CHECK IF REGISTERED ──────────────────
+(function() {
+  const registered = localStorage.getItem('smartfarm_registered');
+  if (!registered) {
+    // Not registered – redirect back to registration page
+    window.location.href = '../';  // or '../notification_page/'
+    return;
+  }
+})();
 
 // ─── CONFIGURATION ──────────────────────────────────────────────
 const CONFIG = {
