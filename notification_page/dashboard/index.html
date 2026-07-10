@@ -29,6 +29,7 @@
 
     <!-- SENSOR CARDS -->
     <section class="cards-grid" id="sensor-cards">
+      <!-- Temperature -->
       <div class="card card-temp" id="card-temp">
         <div class="card-icon">🌡️</div>
         <div class="card-content">
@@ -37,6 +38,8 @@
           <span class="card-unit">°C</span>
         </div>
       </div>
+
+      <!-- Humidity -->
       <div class="card card-humidity" id="card-humidity">
         <div class="card-icon">💧</div>
         <div class="card-content">
@@ -45,6 +48,8 @@
           <span class="card-unit">%</span>
         </div>
       </div>
+
+      <!-- Rainfall -->
       <div class="card card-rainfall" id="card-rainfall">
         <div class="card-icon">🌧️</div>
         <div class="card-content">
@@ -53,6 +58,8 @@
           <span class="card-unit">mm</span>
         </div>
       </div>
+
+      <!-- Advisory -->
       <div class="card card-advisory" id="card-advisory">
         <div class="card-icon">📋</div>
         <div class="card-content">
@@ -66,8 +73,9 @@
       </div>
     </section>
 
-    <!-- WEATHER CARDS (forecast) -->
+    <!-- WEATHER CARDS (forecast from OpenWeatherMap) -->
     <section class="cards-grid weather-grid" id="weather-cards">
+      <!-- Rain Probability -->
       <div class="card card-weather" id="card-rain-prob">
         <div class="card-icon">🌧️</div>
         <div class="card-content">
@@ -76,6 +84,8 @@
           <span class="card-unit">%</span>
         </div>
       </div>
+
+      <!-- Wind Speed -->
       <div class="card card-weather" id="card-wind">
         <div class="card-icon">💨</div>
         <div class="card-content">
@@ -84,6 +94,8 @@
           <span class="card-unit">m/s</span>
         </div>
       </div>
+
+      <!-- Pressure -->
       <div class="card card-weather" id="card-pressure">
         <div class="card-icon">📊</div>
         <div class="card-content">
@@ -92,6 +104,8 @@
           <span class="card-unit">hPa</span>
         </div>
       </div>
+
+      <!-- Weather Description -->
       <div class="card card-weather" id="card-weather-desc">
         <div class="card-icon">☁️</div>
         <div class="card-content">
@@ -125,7 +139,9 @@
       </div>
       <div class="table-responsive">
         <table class="advisories-table">
-          <thead><tr><th>Date</th><th>Advisory</th></tr></thead>
+          <thead>
+            <tr><th>Date</th><th>Advisory</th></tr>
+          </thead>
           <tbody id="advisories-body">
             <tr class="empty-row"><td colspan="2">No advisory data available</td></tr>
           </tbody>
