@@ -1,47 +1,14 @@
 // ==========================================
-//  SMART FARM – DASHBOARD (Firebase Direct)
+//  SMART FARM – DASHBOARD (Firebase Auth)
 // ==========================================
 
 import { db, auth } from '../firebase-config.js';
 import { ref, get, child } from 'firebase/database';
+import { onAuthStateChanged, setPersistence, browserLocalPersistence } from 'firebase/auth';
 
-// ─── CHECK IF REGISTERED ──────────────────
-(function() {
-  const registered = localStorage.getItem('smartfarm_registered');
-  if (!registered) {
-    window.location.href = '../';
-    return;
-  }
-})();
-
-// ─── USER GREETING & SIGN OUT ──────────────
+// ─── DOM REFS ──────────────────────────────
 const userGreeting = document.getElementById('userGreeting');
 const signOutBtn = document.getElementById('signOutBtn');
-const name = localStorage.getItem('smartfarm_name') || 'Farmer';
-if (userGreeting) userGreeting.textContent = `Hello, ${name} 👋`;
-if (signOutBtn) {
-  signOutBtn.addEventListener('click', () => {
-    localStorage.removeItem('smartfarm_registered');
-    localStorage.removeItem('smartfarm_email');
-    localStorage.removeItem('smartfarm_name');
-    // Sign out from Firebase
-    auth.signOut().catch(() => {});
-    window.location.href = '../';
-  });
-}
-
-// ─── CONFIG ──────────────────────────────────
-const CONFIG = {
-    API_BASE: 'https://smartfarm-4z48.onrender.com',
-    DEVICE_ID: 'esp32_001',
-    REFRESH_INTERVAL_MS: 30000,
-    MAX_ADVISORIES: 50,
-};
-
-let chartInstances = { temp: null, humidity: null, rainfall: null };
-let currentData = { readings: [], deviceId: '', count: 0 };
-let refreshTimer = null;
-let isFirstLoad = true;
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
@@ -61,6 +28,20 @@ const dom = {
     humidityChart: $('#humidity-chart'),
     rainfallChart: $('#rainfall-chart'),
 };
+
+// ─── CONFIG ──────────────────────────────────
+const CONFIG = {
+    API_BASE: 'https://smartfarm-4z48.onrender.com',
+    DEVICE_ID: 'esp32_001',
+    REFRESH_INTERVAL_MS: 30000,
+    MAX_ADVISORIES: 50,
+};
+
+let chartInstances = { temp: null, humidity: null, rainfall: null };
+let currentData = { readings: [], deviceId: '', count: 0 };
+let refreshTimer = null;
+let isFirstLoad = true;
+let isAuthenticated = false;
 
 // ─── HELPERS ──────────────────────────────────
 function getReadingValue(reading, keys) {
@@ -99,8 +80,12 @@ function truncateAdvisory(label, maxLen = 60) {
     return label.length > maxLen ? label.slice(0, maxLen) + '…' : label;
 }
 
-// ─── FIREBASE DIRECT READ ────────────────────
+// ─── FIREBASE READ ──────────────────────────
 async function fetchCurrentAdvisory() {
+    if (!isAuthenticated) {
+        console.warn('Not authenticated, skipping Firebase read.');
+        return null;
+    }
     try {
         const snapshot = await get(child(ref(db), `devices/${CONFIG.DEVICE_ID}/current_advisory`));
         if (snapshot.exists()) {
@@ -113,7 +98,7 @@ async function fetchCurrentAdvisory() {
     }
 }
 
-// ─── API FOR HISTORY ─────────────────────────
+// ─── API FOR HISTORY ────────────────────────
 async function fetchHistoryData() {
     const url = `${CONFIG.API_BASE}/history-data?device_id=${encodeURIComponent(CONFIG.DEVICE_ID)}`;
     try {
@@ -126,7 +111,7 @@ async function fetchHistoryData() {
     }
 }
 
-// ─── RENDER CURRENT ADVISORY ──────────────────
+// ─── RENDER FUNCTIONS ────────────────────────
 function renderCurrentAdvisory(advisory) {
     if (!advisory) {
         dom.tempValue.textContent = '--';
@@ -184,7 +169,6 @@ function renderCurrentAdvisory(advisory) {
     }
 }
 
-// ─── RENDER TABLE ──────────────────────────────
 function renderTable(readings) {
     const tbody = dom.advisoryBody;
     const countEl = dom.advisoryCount;
@@ -205,7 +189,6 @@ function renderTable(readings) {
     tbody.innerHTML = html;
 }
 
-// ─── RENDER CHARTS ────────────────────────────
 function updateOrCreateChart(canvasId, label, color, dataPoints, unit = '') {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return null;
@@ -296,7 +279,7 @@ function renderCharts(readings) {
     updateOrCreateChart('rainfall-chart', 'Rainfall', colors.rainfall, data, 'mm');
 }
 
-// ─── MAIN UPDATE ──────────────────────────────
+// ─── REFRESH ──────────────────────────────────
 async function refreshDashboard() {
     try {
         const advisory = await fetchCurrentAdvisory();
@@ -327,19 +310,58 @@ function startAutoRefresh() {
     dom.refreshLabel.textContent = `Auto-refresh every ${CONFIG.REFRESH_INTERVAL_MS / 1000}s`;
 }
 
+// ─── AUTH & INIT ──────────────────────────────
 async function init() {
-    dom.tempValue.textContent = '…';
-    dom.humidityValue.textContent = '…';
-    dom.rainfallValue.textContent = '…';
-    dom.advisoryValue.innerHTML = `<span class="no-data-text">Loading…</span>`;
-    dom.lastUpdated.textContent = 'Loading…';
-    await refreshDashboard();
-    startAutoRefresh();
-    document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) refreshDashboard();
+    try {
+        await setPersistence(auth, browserLocalPersistence);
+        console.log('Auth persistence set to local.');
+    } catch (err) {
+        console.warn('Persistence error:', err);
+    }
+
+    onAuthStateChanged(auth, async (user) => {
+        if (user) {
+            isAuthenticated = true;
+            const name = user.displayName || user.email || 'Farmer';
+            localStorage.setItem('smartfarm_name', name);
+            localStorage.setItem('smartfarm_registered', 'true');
+            localStorage.setItem('smartfarm_email', user.email);
+            if (userGreeting) userGreeting.textContent = `Hello, ${name} 👋`;
+
+            // Sign-out handler
+            if (signOutBtn) {
+                signOutBtn.addEventListener('click', () => {
+                    auth.signOut().catch(() => {});
+                    localStorage.removeItem('smartfarm_registered');
+                    localStorage.removeItem('smartfarm_email');
+                    localStorage.removeItem('smartfarm_name');
+                    window.location.href = '../';
+                });
+            }
+
+            // Load dashboard
+            dom.tempValue.textContent = '…';
+            dom.humidityValue.textContent = '…';
+            dom.rainfallValue.textContent = '…';
+            dom.advisoryValue.innerHTML = `<span class="no-data-text">Loading…</span>`;
+            dom.lastUpdated.textContent = 'Loading…';
+
+            await refreshDashboard();
+            startAutoRefresh();
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) refreshDashboard();
+            });
+            console.log('🌱 Smart Farm Dashboard initialized.');
+            console.log(`📡 Device: ${CONFIG.DEVICE_ID}`);
+            console.log(`👤 User: ${user.email}`);
+        } else {
+            console.warn('User not authenticated, redirecting to sign-in.');
+            localStorage.removeItem('smartfarm_registered');
+            localStorage.removeItem('smartfarm_email');
+            localStorage.removeItem('smartfarm_name');
+            window.location.href = '../';
+        }
     });
-    console.log('🌱 Smart Farm Dashboard initialized.');
-    console.log(`📡 Device: ${CONFIG.DEVICE_ID}`);
 }
 
 document.addEventListener('DOMContentLoaded', init);
