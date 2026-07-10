@@ -6,18 +6,16 @@
 (function() {
   const registered = localStorage.getItem('smartfarm_registered');
   if (!registered) {
-    // Not registered – redirect back to registration page
-    window.location.href = '../';  // or '../notification_page/'
+    window.location.href = '../';
     return;
   }
 })();
 
 // ─── CONFIGURATION ──────────────────────────────────────────────
 const CONFIG = {
-    // Render backend URL
     API_BASE: 'https://smartfarm-4z48.onrender.com',
     DEVICE_ID: 'esp32_001',
-    REFRESH_INTERVAL_MS: 30000, // 30 seconds
+    REFRESH_INTERVAL_MS: 30000,
     MAX_ADVISORIES: 50,
 };
 
@@ -58,6 +56,25 @@ const dom = {
 };
 
 // ─── HELPERS ────────────────────────────────────────────────────
+
+/** Get a value from a reading object, trying both root and input sub-object */
+function getReadingValue(reading, keys) {
+    if (!reading) return undefined;
+    // Try root level first
+    for (const key of keys) {
+        if (reading[key] !== undefined && reading[key] !== null) {
+            return reading[key];
+        }
+    }
+    // Try inside an 'input' object if it exists
+    const input = reading.input || {};
+    for (const key of keys) {
+        if (input[key] !== undefined && input[key] !== null) {
+            return input[key];
+        }
+    }
+    return undefined;
+}
 
 /** Format a date string for display */
 function formatDate(dateStr) {
@@ -142,19 +159,18 @@ function renderCards(readings) {
         return;
     }
 
-    const latest = readings[0]; // already sorted desc by fetch
-    const input = latest.input || {};
+    const latest = readings[0];
 
     // Temperature
-    const temp = input.temp_mean;
+    const temp = getReadingValue(latest, ['temp_mean', 'temperature', 'temp', 't']);
     dom.tempValue.textContent = temp !== undefined && temp !== null ? Number(temp).toFixed(1) : '--';
 
     // Humidity
-    const hum = input.humidity_mean;
+    const hum = getReadingValue(latest, ['humidity_mean', 'humidity', 'hum', 'h']);
     dom.humidityValue.textContent = hum !== undefined && hum !== null ? Number(hum).toFixed(0) : '--';
 
     // Rainfall
-    const rain = input.precipitation_mm;
+    const rain = getReadingValue(latest, ['precipitation_mm', 'precipitation', 'rain', 'rainfall', 'r']);
     dom.rainfallValue.textContent = rain !== undefined && rain !== null ? Number(rain).toFixed(1) : '--';
 
     // Advisory
@@ -178,7 +194,6 @@ function renderTable(readings) {
         return;
     }
 
-    // Show all readings, already sorted desc by predicted_at
     const rows = readings.slice(0, CONFIG.MAX_ADVISORIES);
     countEl.textContent = `${rows.length} advisory${rows.length !== 1 ? 'ies' : ''}`;
 
@@ -204,31 +219,29 @@ function updateOrCreateChart(canvasId, label, color, dataPoints, unit = '') {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return null;
 
-    // Prepare data
-    const sorted = [...dataPoints].reverse(); // chronological for charts
+    const sorted = [...dataPoints].reverse();
     const labels = sorted.map((d) => {
         const dt = new Date(d.predicted_at);
         return dt.toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' });
     });
 
+    // Extract values using the flexible helper
     let values;
     switch (canvasId) {
         case 'temp-chart':
-            values = sorted.map((d) => d.input?.temp_mean ?? null);
+            values = sorted.map((d) => getReadingValue(d, ['temp_mean', 'temperature', 'temp', 't']));
             break;
         case 'humidity-chart':
-            values = sorted.map((d) => d.input?.humidity_mean ?? null);
+            values = sorted.map((d) => getReadingValue(d, ['humidity_mean', 'humidity', 'hum', 'h']));
             break;
         case 'rainfall-chart':
-            values = sorted.map((d) => d.input?.precipitation_mm ?? null);
+            values = sorted.map((d) => getReadingValue(d, ['precipitation_mm', 'precipitation', 'rain', 'rainfall', 'r']));
             break;
         default:
             values = [];
     }
 
-    const hasData = values.some((v) => v !== null && v !== undefined);
-
-    // If existing chart, update it
+    // If chart already exists, update it
     if (chartInstances[canvasId]) {
         const chart = chartInstances[canvasId];
         chart.data.labels = labels;
@@ -239,8 +252,6 @@ function updateOrCreateChart(canvasId, label, color, dataPoints, unit = '') {
 
     // Otherwise create new chart
     const ctx = canvas.getContext('2d');
-
-    // Gradient fill
     const gradient = ctx.createLinearGradient(0, 0, 0, 180);
     const alpha = 0.25;
     gradient.addColorStop(0, color + Math.round(alpha * 255).toString(16).padStart(2, '0'));
@@ -266,9 +277,7 @@ function updateOrCreateChart(canvasId, label, color, dataPoints, unit = '') {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: {
-                    display: false,
-                },
+                legend: { display: false },
                 tooltip: {
                     callbacks: {
                         label: function(ctx) {
@@ -282,28 +291,15 @@ function updateOrCreateChart(canvasId, label, color, dataPoints, unit = '') {
             scales: {
                 x: {
                     grid: { display: false },
-                    ticks: {
-                        maxTicksLimit: 8,
-                        font: { size: 9 },
-                        color: '#8a9a8a',
-                    },
+                    ticks: { maxTicksLimit: 8, font: { size: 9 }, color: '#8a9a8a' },
                 },
                 y: {
                     grid: { color: 'rgba(0,0,0,0.05)' },
-                    ticks: {
-                        font: { size: 9 },
-                        color: '#8a9a8a',
-                        callback: function(value) {
-                            return Number(value).toFixed(0);
-                        },
-                    },
+                    ticks: { font: { size: 9 }, color: '#8a9a8a', callback: (v) => Number(v).toFixed(0) },
                     beginAtZero: canvasId === 'rainfall-chart' ? true : undefined,
                 },
             },
-            interaction: {
-                intersect: false,
-                mode: 'index',
-            },
+            interaction: { intersect: false, mode: 'index' },
         },
     });
 
@@ -314,14 +310,11 @@ function updateOrCreateChart(canvasId, label, color, dataPoints, unit = '') {
 /** Update all charts with current data */
 function renderCharts(readings) {
     const data = readings || [];
-
-    // Colors
     const colors = {
         temp: '#e65100',
         humidity: '#0d47a1',
         rainfall: '#00695c',
     };
-
     updateOrCreateChart('temp-chart', 'Temperature', colors.temp, data, '°C');
     updateOrCreateChart('humidity-chart', 'Humidity', colors.humidity, data, '%');
     updateOrCreateChart('rainfall-chart', 'Rainfall', colors.rainfall, data, 'mm');
@@ -329,10 +322,8 @@ function renderCharts(readings) {
 
 // ─── MAIN UPDATE ───────────────────────────────────────────────
 
-/** Fetch data and update the entire dashboard */
 async function refreshDashboard() {
     try {
-        // Show loading state on first load
         if (isFirstLoad) {
             dom.tempValue.textContent = '…';
             dom.humidityValue.textContent = '…';
@@ -343,7 +334,6 @@ async function refreshDashboard() {
         const result = await fetchHistoryData();
 
         if (!result || !result.readings || result.readings.length === 0) {
-            // No data — show empty state
             currentData = { readings: [], deviceId: result?.device_id || CONFIG.DEVICE_ID, count: 0 };
             renderCards([]);
             renderTable([]);
@@ -357,10 +347,7 @@ async function refreshDashboard() {
             return;
         }
 
-        // Sort readings by predicted_at descending (newest first)
-        const sorted = [...result.readings].sort((a, b) => {
-            return new Date(b.predicted_at) - new Date(a.predicted_at);
-        });
+        const sorted = [...result.readings].sort((a, b) => new Date(b.predicted_at) - new Date(a.predicted_at));
 
         currentData = {
             readings: sorted,
@@ -368,78 +355,48 @@ async function refreshDashboard() {
             count: result.count || sorted.length,
         };
 
-        // Update device ID in header
         dom.deviceId.textContent = currentData.deviceId.toUpperCase();
 
-        // Render
         renderCards(sorted);
         renderTable(sorted);
         renderCharts(sorted);
 
-        // Update timestamp
         dom.lastUpdated.textContent = new Date().toLocaleString();
         dom.statusDot.className = 'dot';
 
-        if (isFirstLoad) {
-            isFirstLoad = false;
-        }
+        if (isFirstLoad) isFirstLoad = false;
     } catch (err) {
         console.error('[refreshDashboard]', err);
         dom.statusDot.className = 'dot paused';
-        // Don't blow away existing data on error
     }
 }
 
 // ─── AUTO-REFRESH ──────────────────────────────────────────────
 
 function startAutoRefresh() {
-    if (refreshTimer) {
-        clearInterval(refreshTimer);
-    }
-    refreshTimer = setInterval(() => {
-        refreshDashboard();
-    }, CONFIG.REFRESH_INTERVAL_MS);
+    if (refreshTimer) clearInterval(refreshTimer);
+    refreshTimer = setInterval(refreshDashboard, CONFIG.REFRESH_INTERVAL_MS);
     dom.refreshLabel.textContent = `Auto-refresh every ${CONFIG.REFRESH_INTERVAL_MS / 1000}s`;
-}
-
-function stopAutoRefresh() {
-    if (refreshTimer) {
-        clearInterval(refreshTimer);
-        refreshTimer = null;
-        dom.refreshLabel.textContent = 'Auto-refresh stopped';
-        dom.statusDot.className = 'dot paused';
-    }
 }
 
 // ─── INIT ──────────────────────────────────────────────────────
 
 async function init() {
-    // Show loading
     dom.tempValue.textContent = '…';
     dom.humidityValue.textContent = '…';
     dom.rainfallValue.textContent = '…';
     dom.advisoryValue.innerHTML = `<span class="no-data-text">Loading…</span>`;
     dom.lastUpdated.textContent = 'Loading…';
 
-    // Initial data load
     await refreshDashboard();
-
-    // Start auto-refresh
     startAutoRefresh();
 
-    // Optional: visibility change — refresh when tab becomes visible
     document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) {
-            // Tab visible again — refresh immediately
-            refreshDashboard();
-        }
+        if (!document.hidden) refreshDashboard();
     });
 
     console.log('🌱 Smart Farm Dashboard initialized.');
     console.log(`📡 Device: ${CONFIG.DEVICE_ID}`);
-    console.log(`⏱️  Refresh interval: ${CONFIG.REFRESH_INTERVAL_MS / 1000}s`);
 }
-
-// ─── START ─────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', init);
