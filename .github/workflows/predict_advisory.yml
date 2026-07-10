@@ -2,9 +2,8 @@ name: Predict Farm Advisory
 
 on:
   schedule:
-    # Run every 6 hours at minute 0: 00:00, 06:00, 12:00, 18:00 UTC
     - cron: "0 */6 * * *"
-  workflow_dispatch: {}   # manual trigger
+  workflow_dispatch:
 
 jobs:
   predict:
@@ -21,32 +20,63 @@ jobs:
       - name: Install dependencies
         run: pip install -r github_actions/requirements.txt
 
-      # ---------- Fetch tomorrow's weather forecast ----------
+      # ---------- Fetch weather data (today + tomorrow) ----------
       - name: Get weather forecast
         id: weather
         run: |
-          # Farm coordinates (hardcoded – replace with your farm's lat/lon)
           LAT=0.0236
           LON=37.9062
           API_KEY=${{ secrets.OPENWEATHER_API_KEY }}
           
           RESPONSE=$(curl -s "https://api.openweathermap.org/data/2.5/forecast?lat=${LAT}&lon=${LON}&appid=${API_KEY}&units=metric")
           
+          TODAY=$(date +%Y-%m-%d)
           TOMORROW=$(date -d "tomorrow" +%Y-%m-%d)
           
-          # Sum precipitation probabilities (pop) for all 3-hour intervals tomorrow
+          # --- Tomorrow's rain probability (as before) ---
           POP_SUM=$(echo "$RESPONSE" | jq --arg date "$TOMORROW" '.list[] | select(.dt_txt | startswith($date)) | .pop' | jq -s 'add')
           POP_COUNT=$(echo "$RESPONSE" | jq --arg date "$TOMORROW" '.list[] | select(.dt_txt | startswith($date)) | .pop' | jq -s 'length')
-          
           if [ "$POP_COUNT" -gt 0 ]; then
             AVG_POP=$(echo "scale=2; $POP_SUM / $POP_COUNT" | bc)
           else
             AVG_POP=0
           fi
-          
           RAIN_PROB=$(printf "%.0f" $(echo "$AVG_POP * 100" | bc))
-          
           echo "rain_prob=$RAIN_PROB" >> $GITHUB_ENV
+
+          # --- Tomorrow's wind speed (average) ---
+          WIND_SUM=$(echo "$RESPONSE" | jq --arg date "$TOMORROW" '.list[] | select(.dt_txt | startswith($date)) | .wind.speed' | jq -s 'add')
+          WIND_COUNT=$(echo "$RESPONSE" | jq --arg date "$TOMORROW" '.list[] | select(.dt_txt | startswith($date)) | .wind.speed' | jq -s 'length')
+          if [ "$WIND_COUNT" -gt 0 ]; then
+            AVG_WIND=$(echo "scale=2; $WIND_SUM / $WIND_COUNT" | bc)
+          else
+            AVG_WIND=0
+          fi
+          echo "tomorrow_wind=$AVG_WIND" >> $GITHUB_ENV
+
+          # --- Tomorrow's pressure (average) ---
+          PRESSURE_SUM=$(echo "$RESPONSE" | jq --arg date "$TOMORROW" '.list[] | select(.dt_txt | startswith($date)) | .main.pressure' | jq -s 'add')
+          PRESSURE_COUNT=$(echo "$RESPONSE" | jq --arg date "$TOMORROW" '.list[] | select(.dt_txt | startswith($date)) | .main.pressure' | jq -s 'length')
+          if [ "$PRESSURE_COUNT" -gt 0 ]; then
+            AVG_PRESSURE=$(echo "scale=2; $PRESSURE_SUM / $PRESSURE_COUNT" | bc)
+          else
+            AVG_PRESSURE=0
+          fi
+          echo "tomorrow_pressure=$AVG_PRESSURE" >> $GITHUB_ENV
+
+          # --- Weather description (tomorrow) ---
+          DESCRIPTION=$(echo "$RESPONSE" | jq -r --arg date "$TOMORROW" '.list[] | select(.dt_txt | startswith($date)) | .weather[0].description' | head -1)
+          echo "tomorrow_desc=$DESCRIPTION" >> $GITHUB_ENV
+
+          # --- NEW: Today's wind speed (use first entry for today) ---
+          TODAY_WIND=$(echo "$RESPONSE" | jq --arg date "$TODAY" '.list[] | select(.dt_txt | startswith($date)) | .wind.speed' | head -1)
+          if [ -z "$TODAY_WIND" ]; then TODAY_WIND=0; fi
+          echo "today_wind=$TODAY_WIND" >> $GITHUB_ENV
+
+          # --- NEW: Today's pressure (use first entry for today) ---
+          TODAY_PRESSURE=$(echo "$RESPONSE" | jq --arg date "$TODAY" '.list[] | select(.dt_txt | startswith($date)) | .main.pressure' | head -1)
+          if [ -z "$TODAY_PRESSURE" ]; then TODAY_PRESSURE=0; fi
+          echo "today_pressure=$TODAY_PRESSURE" >> $GITHUB_ENV
 
       - name: Run advisory prediction (6‑hourly)
         env:
@@ -57,5 +87,11 @@ jobs:
           BREVO_SENDER_EMAIL: ${{ secrets.BREVO_SENDER_EMAIL }}
           BREVO_SENDER_NAME: "Smart Farm Advisory"
           WINDOW_HOURS: "6"
-          RAIN_PROB: ${{ env.rain_prob }}   # pass to Python
+          # Weather data passed to Python
+          RAIN_PROB: ${{ env.rain_prob }}
+          TOMORROW_WIND: ${{ env.tomorrow_wind }}
+          TOMORROW_PRESSURE: ${{ env.tomorrow_pressure }}
+          TOMORROW_DESC: ${{ env.tomorrow_desc }}
+          TODAY_WIND: ${{ env.today_wind }}
+          TODAY_PRESSURE: ${{ env.today_pressure }}
         run: python github_actions/predict_advisory.py
