@@ -16,6 +16,7 @@ from datetime import datetime, timezone, timedelta
 
 import requests
 import joblib
+import numpy as np
 import pandas as pd
 import firebase_admin
 from firebase_admin import credentials, db
@@ -254,24 +255,48 @@ def adjust_advisory_with_weather(original_label, rain_prob):
 
 
 # ---------------------------------------------------
+# JSON serialization helper
+# ---------------------------------------------------
+
+def convert_to_serializable(obj):
+    """Recursively convert numpy types to Python scalars for JSON serialization."""
+    if isinstance(obj, dict):
+        return {k: convert_to_serializable(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_to_serializable(v) for v in obj]
+    elif isinstance(obj, (np.integer, np.int64)):
+        return int(obj)
+    elif isinstance(obj, (np.floating, np.float64)):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    else:
+        return obj
+
+
+# ---------------------------------------------------
 # Save advisory
 # ---------------------------------------------------
 
 def save_advisory(device_id: str, label: str, reading: dict, forecast_note: str = "", weather_forecast: dict = None):
     predicted_at = datetime.now(timezone.utc).isoformat()
 
+    # Convert numpy types to serializable Python types
+    serializable_reading = convert_to_serializable(reading)
+    serializable_weather = convert_to_serializable(weather_forecast) if weather_forecast else None
+
     record = {
         "device_id": device_id,
         "advisory_label": label,
-        "input": reading,
+        "input": serializable_reading,
         "forecast_note": forecast_note,
         "predicted_at": predicted_at,
     }
 
-    if weather_forecast:
-        record["weather_forecast"] = weather_forecast
+    if serializable_weather:
+        record["weather_forecast"] = serializable_weather
 
-    logger.info(f"Saving advisory record with weather_forecast: {bool(weather_forecast)}")
+    logger.info(f"Saving advisory record with weather_forecast: {bool(serializable_weather)}")
 
     try:
         db.reference(f"devices/{device_id}/current_advisory").set(record)
@@ -564,7 +589,7 @@ def main():
     adjusted_label, forecast_note = adjust_advisory_with_weather(original_label, rain_prob)
     logger.info(f"Adjusted label: {adjusted_label}, forecast_note: {forecast_note}")
 
-    # Save to Firebase
+    # Save to Firebase (now with serialization fix)
     save_advisory(device_id, adjusted_label, features, forecast_note, weather_forecast)
 
     # Send emails
