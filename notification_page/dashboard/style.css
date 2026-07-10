@@ -18,7 +18,6 @@ body {
     align-items: center;
 }
 
-/* ---------- CONTAINER ---------- */
 .dashboard {
     max-width: 1440px;
     width: 100%;
@@ -185,7 +184,7 @@ body {
     margin-left: 4px;
 }
 
-/* Advisory card special styling */
+/* Advisory card */
 .card-advisory .card-icon {
     background: #e8f5e9;
 }
@@ -229,7 +228,7 @@ body {
     font-size: 1.2rem;
 }
 
-/* Card color accents */
+/* Color accents for sensor cards */
 .card-temp .card-icon {
     background: #fff3e0;
 }
@@ -249,6 +248,30 @@ body {
 }
 .card-rainfall .card-value {
     color: #00695c;
+}
+
+/* ---------- WEATHER CARDS ---------- */
+.weather-grid .card {
+    background: #f8faff;
+    border-color: #dce4f0;
+}
+.weather-grid .card-icon {
+    background: #e8edf5;
+}
+.weather-grid .card-value {
+    color: #1a3a5c;
+}
+
+#forecast-note {
+    font-size: 0.9rem;
+    color: #2f7d4f;
+    background: #e8f5e9;
+    padding: 4px 12px;
+    border-radius: 20px;
+    display: inline-block;
+    margin-top: 6px;
+    max-width: 100%;
+    word-break: break-word;
 }
 
 /* ---------- CHARTS ---------- */
@@ -280,12 +303,6 @@ body {
     color: #6b7a6b;
     margin-bottom: 8px;
     padding-left: 4px;
-}
-
-.chart-container canvas {
-    width: 100% !important;
-    height: auto !important;
-    max-height: 180px;
 }
 
 .chart-wrapper {
@@ -369,26 +386,11 @@ body {
     color: #1b5e20;
 }
 
-.advisories-table .advisory-tag.optimal {
-    background: #e8f5e9;
-    color: #1b5e20;
-}
-.advisories-table .advisory-tag.warning {
-    background: #fff3e0;
-    color: #bf360c;
-}
-.advisories-table .advisory-tag.critical {
-    background: #fce4ec;
-    color: #b71c1c;
-}
-.advisories-table .advisory-tag.info {
-    background: #e3f2fd;
-    color: #0d47a1;
-}
-.advisories-table .advisory-tag.monitor {
-    background: #fff8e1;
-    color: #f57f17;
-}
+.advisories-table .advisory-tag.optimal { background: #e8f5e9; color: #1b5e20; }
+.advisories-table .advisory-tag.warning { background: #fff3e0; color: #bf360c; }
+.advisories-table .advisory-tag.critical { background: #fce4ec; color: #b71c1c; }
+.advisories-table .advisory-tag.info { background: #e3f2fd; color: #0d47a1; }
+.advisories-table .advisory-tag.monitor { background: #fff8e1; color: #f57f17; }
 
 .advisories-table .date-cell {
     font-weight: 450;
@@ -442,141 +444,49 @@ body {
     background: #4caf50;
     animation: pulse-dot 2s infinite;
 }
-
 .refresh-status .dot.paused {
     background: #bdbdbd;
     animation: none;
 }
 
 @keyframes pulse-dot {
-    0%,
-    100% {
-        opacity: 1;
-        transform: scale(1);
-    }
-    50% {
-        opacity: 0.4;
-        transform: scale(0.85);
-    }
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.85); }
 }
 
 /* ---------- RESPONSIVE ---------- */
 @media (max-width: 1100px) {
-    .cards-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-    .charts-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-    .charts-grid .chart-container:last-child {
-        grid-column: 1 / -1;
-    }
+    .cards-grid { grid-template-columns: repeat(2, 1fr); }
+    .charts-grid { grid-template-columns: repeat(2, 1fr); }
+    .charts-grid .chart-container:last-child { grid-column: 1 / -1; }
 }
 
 @media (max-width: 700px) {
-    body {
-        padding: 16px;
-    }
-
-    .header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 12px;
-        padding: 18px 20px;
-    }
-
-    .header-left h1 {
-        font-size: 1.3rem;
-    }
-
-    .header-right {
-        align-self: stretch;
-        justify-content: center;
-        padding: 6px 14px;
-        flex-wrap: wrap;
-    }
-
-    .user-greeting {
-        margin-left: 6px;
-        font-size: 0.8rem;
-    }
-
-    .sign-out-btn {
-        font-size: 0.7rem;
-        padding: 4px 10px;
-    }
-
-    .cards-grid {
-        grid-template-columns: 1fr 1fr;
-        gap: 12px;
-    }
-
-    .card {
-        padding: 14px 16px;
-        gap: 12px;
-    }
-
-    .card-icon {
-        width: 40px;
-        height: 40px;
-        font-size: 1.6rem;
-    }
-
-    .card-value {
-        font-size: 1.4rem;
-    }
-
-    .charts-grid {
-        grid-template-columns: 1fr;
-        gap: 16px;
-    }
-
-    .charts-grid .chart-container:last-child {
-        grid-column: 1;
-    }
-
-    .chart-wrapper {
-        height: 150px;
-    }
-
-    .advisories-section {
-        padding: 16px;
-    }
-
-    .advisories-table {
-        font-size: 0.8rem;
-    }
-
-    .footer-bar {
-        flex-direction: column;
-        align-items: flex-start;
-    }
+    body { padding: 16px; }
+    .header { flex-direction: column; align-items: flex-start; gap: 12px; padding: 18px 20px; }
+    .header-left h1 { font-size: 1.3rem; }
+    .header-right { align-self: stretch; justify-content: center; padding: 6px 14px; flex-wrap: wrap; }
+    .user-greeting { margin-left: 6px; font-size: 0.8rem; }
+    .sign-out-btn { font-size: 0.7rem; padding: 4px 10px; }
+    .cards-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+    .card { padding: 14px 16px; gap: 12px; }
+    .card-icon { width: 40px; height: 40px; font-size: 1.6rem; }
+    .card-value { font-size: 1.4rem; }
+    .charts-grid { grid-template-columns: 1fr; gap: 16px; }
+    .charts-grid .chart-container:last-child { grid-column: 1; }
+    .chart-wrapper { height: 150px; }
+    .advisories-section { padding: 16px; }
+    .advisories-table { font-size: 0.8rem; }
+    .footer-bar { flex-direction: column; align-items: flex-start; }
 }
 
 @media (max-width: 480px) {
-    .cards-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .header-left h1 {
-        font-size: 1.1rem;
-    }
-
-    .header-left .logo-icon {
-        font-size: 1.5rem;
-    }
+    .cards-grid { grid-template-columns: 1fr; }
+    .header-left h1 { font-size: 1.1rem; }
+    .header-left .logo-icon { font-size: 1.5rem; }
 }
 
 /* ---------- UTILITY ---------- */
-.text-muted {
-    color: #9e9e9e;
-}
-
-.mt-2 {
-    margin-top: 8px;
-}
-
-/* Loading shimmer for cards */
-.card-loading .card-value {
-    color: #bdbdbd;
-}
+.text-muted { color: #9e9e9e; }
+.mt-2 { margin-top: 8px; }
+.card-loading .card-value { color: #bdbdbd; }
