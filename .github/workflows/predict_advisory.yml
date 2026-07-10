@@ -4,7 +4,7 @@ on:
   schedule:
     # Run every 6 hours at minute 0: 00:00, 06:00, 12:00, 18:00 UTC
     - cron: "0 */6 * * *"
-  workflow_dispatch: {}   # manual trigger for testing
+  workflow_dispatch: {}   # manual trigger
 
 jobs:
   predict:
@@ -21,6 +21,33 @@ jobs:
       - name: Install dependencies
         run: pip install -r github_actions/requirements.txt
 
+      # ---------- Fetch tomorrow's weather forecast ----------
+      - name: Get weather forecast
+        id: weather
+        run: |
+          # Farm coordinates (hardcoded – replace with your farm's lat/lon)
+          LAT=0.0236
+          LON=37.9062
+          API_KEY=${{ secrets.OPENWEATHER_API_KEY }}
+          
+          RESPONSE=$(curl -s "https://api.openweathermap.org/data/2.5/forecast?lat=${LAT}&lon=${LON}&appid=${API_KEY}&units=metric")
+          
+          TOMORROW=$(date -d "tomorrow" +%Y-%m-%d)
+          
+          # Sum precipitation probabilities (pop) for all 3-hour intervals tomorrow
+          POP_SUM=$(echo "$RESPONSE" | jq --arg date "$TOMORROW" '.list[] | select(.dt_txt | startswith($date)) | .pop' | jq -s 'add')
+          POP_COUNT=$(echo "$RESPONSE" | jq --arg date "$TOMORROW" '.list[] | select(.dt_txt | startswith($date)) | .pop' | jq -s 'length')
+          
+          if [ "$POP_COUNT" -gt 0 ]; then
+            AVG_POP=$(echo "scale=2; $POP_SUM / $POP_COUNT" | bc)
+          else
+            AVG_POP=0
+          fi
+          
+          RAIN_PROB=$(printf "%.0f" $(echo "$AVG_POP * 100" | bc))
+          
+          echo "rain_prob=$RAIN_PROB" >> $GITHUB_ENV
+
       - name: Run advisory prediction (6‑hourly)
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
@@ -29,5 +56,6 @@ jobs:
           BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
           BREVO_SENDER_EMAIL: ${{ secrets.BREVO_SENDER_EMAIL }}
           BREVO_SENDER_NAME: "Smart Farm Advisory"
-          WINDOW_HOURS: "6"   # new env var to control aggregation window
+          WINDOW_HOURS: "6"
+          RAIN_PROB: ${{ env.rain_prob }}   # pass to Python
         run: python github_actions/predict_advisory.py
