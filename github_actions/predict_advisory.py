@@ -1,10 +1,11 @@
 """
 predict_advisory.py
 --------------------
-Reads latest sensor readings, aggregates over time window,
-runs model (which now includes wind_speed_10m_mean and pressure_msl_mean),
-adjusts advisory based on tomorrow's rain probability,
-saves to Firebase, and emails subscribers.
+Reads the latest sensor readings for a device from Firebase Realtime Database,
+computes aggregates over a configurable time window (e.g., 6 hours),
+runs the trained model (which now includes wind_speed_10m_mean and pressure_msl_mean)
+to produce an advisory label, then adjusts based on tomorrow's rain probability.
+Writes the result back to the database and emails subscribers.
 """
 
 import os
@@ -34,11 +35,13 @@ logger = logging.getLogger("predict_advisory")
 # Configuration
 # ---------------------------------------------------
 
+# Use the exact filename with space and parentheses
+MODEL_FILENAME = "farm_advisory_model (2).joblib"
 MODEL_PATH = os.path.join(
     os.path.dirname(__file__),
     "..",
     "models",
-    "farm_advisory_model.joblib",
+    MODEL_FILENAME,
 )
 
 BREVO_SEND_URL = "https://api.brevo.com/v3/smtp/email"
@@ -55,7 +58,7 @@ REQUIRED_ENV_VARS = [
 # Email sent on every run
 NOTIFY_ON_ALL = True
 
-# Recommendations (same as before)
+# Human-readable guidance shown in the email body
 RECOMMENDATIONS = {
     "High Fungal Risk": {
         "emoji": "🍄",
@@ -137,7 +140,7 @@ def init_firebase():
 def load_model():
     if not os.path.exists(MODEL_PATH):
         logger.error(f"Model file not found at: {MODEL_PATH}")
-        logger.error("Make sure farm_advisory_model.joblib is committed under models/")
+        logger.error(f"Make sure '{MODEL_FILENAME}' is committed under models/")
         sys.exit(1)
 
     try:
@@ -268,7 +271,7 @@ def save_advisory(device_id: str, label: str, reading: dict, forecast_note: str 
     if weather_forecast:
         record["weather_forecast"] = weather_forecast
 
-    logger.info(f"Saving advisory record: {record}")
+    logger.info(f"Saving advisory record with weather_forecast: {bool(weather_forecast)}")
 
     try:
         db.reference(f"devices/{device_id}/current_advisory").set(record)
@@ -313,7 +316,7 @@ def load_subscriber_emails(device_id: str) -> list:
 
 
 # ---------------------------------------------------
-# Email generation (kept from previous)
+# Email generation
 # ---------------------------------------------------
 
 def build_email_html(device_id: str, label: str, reading: dict, window_hours: int,
