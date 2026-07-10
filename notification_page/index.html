@@ -3,9 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>🌱 Smart Farm – Notifications</title>
+  <title>🌱 Smart Farm – Sign In</title>
   <link rel="stylesheet" href="style.css" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:opsz@14..32&display=swap" rel="stylesheet" />
+  <script type="importmap">
+    {
+      "imports": {
+        "firebase/app": "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
+        "firebase/database": "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js",
+        "firebase/auth": "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js"
+      }
+    }
+  </script>
 </head>
 <body>
   <div class="container">
@@ -17,24 +26,32 @@
       </div>
 
       <p class="description">
-        Get real‑time farm advisories sent to your inbox.
-        Enter your email to subscribe.
+        Sign in with Google to get real‑time farm advisories.
       </p>
 
-      <form id="registerForm">
+      <!-- Google Sign‑in Button -->
+      <button class="btn-google" id="googleBtn">
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" />
+        Sign in with Google
+      </button>
+
+      <div class="divider"><span>or</span></div>
+
+      <!-- Email fallback (for existing subscribers) -->
+      <form id="emailForm">
         <div class="input-group">
-          <input type="email" id="email" placeholder="you@example.com" required />
-          <button type="submit" id="registerBtn">Subscribe</button>
+          <input type="email" id="emailInput" placeholder="you@example.com" required />
+          <button type="submit" id="emailSignInBtn">Sign in with Email</button>
         </div>
         <div id="status" data-kind=""></div>
       </form>
 
       <div class="footer">
-        <span>🔒 Your email is safe with us.</span>
+        <span>🔒 Secured with Firebase Authentication</span>
       </div>
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>
