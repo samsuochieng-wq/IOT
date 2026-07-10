@@ -2,7 +2,7 @@
 //  SMART FARM – DASHBOARD (Firebase Direct)
 // ==========================================
 
-import { db } from './firebase-config.js';
+import { db, auth } from '../firebase-config.js';
 import { ref, get, child } from 'firebase/database';
 
 // ─── CHECK IF REGISTERED ──────────────────
@@ -24,10 +24,8 @@ if (signOutBtn) {
     localStorage.removeItem('smartfarm_registered');
     localStorage.removeItem('smartfarm_email');
     localStorage.removeItem('smartfarm_name');
-    // Attempt Firebase sign-out
-    import('./firebase-config.js').then(({ auth }) => {
-      auth.signOut();
-    }).catch(() => {});
+    // Sign out from Firebase
+    auth.signOut().catch(() => {});
     window.location.href = '../';
   });
 }
@@ -128,7 +126,7 @@ async function fetchHistoryData() {
     }
 }
 
-// ─── RENDER CURRENT ADVISORY (from Firebase) ──
+// ─── RENDER CURRENT ADVISORY ──────────────────
 function renderCurrentAdvisory(advisory) {
     if (!advisory) {
         dom.tempValue.textContent = '--';
